@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welding &amp; Solvent Costing</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root{
+    --navy-900:#0A1B33; --navy-800:#12294A; --navy-700:#1C3A63; --navy-line:#2A4A78;
+    --amber-500:#DFA355; --amber-600:#C4863A; --teal-500:#2AA9A0;
+    --paper:#F5F6F8; --panel:#FFFFFF; --ink:#182233; --ink-soft:#5B6579;
+    --line:#DDE2EA; --line-soft:#EBEEF3;
+    --mono: ui-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  .app{max-width:1500px;margin:0 auto;padding:24px 20px 60px;}
+
+  /* ---------- Animated gradient hero header ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;
+    padding:26px 30px;border-radius:18px;color:#fff;
+    background:linear-gradient(120deg,var(--navy-900),var(--navy-700),var(--teal-500),var(--amber-600),var(--navy-800));
+    background-size:400% 400%;
+    animation:gradientShift 14s ease infinite;
+    box-shadow:0 10px 30px rgba(10,27,51,.28);
+    position:relative;overflow:hidden;
+  }
+  @keyframes gradientShift{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+  }
+  .brand{display:flex;align-items:center;gap:16px;position:relative;z-index:1;}
+  .brand-mark{width:50px;height:50px;flex:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25));}
+  .brand-text h1{margin:0;font-size:21px;letter-spacing:1.6px;color:#fff;font-weight:800;}
+  .brand-text .subtitle{font-size:12.5px;color:rgba(255,255,255,.8);letter-spacing:.3px;}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:relative;z-index:1;}
+
+  .btn{
+    border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);backdrop-filter:blur(6px);
+    color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  .btn:hover{background:rgba(255,255,255,.24);transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.25);}
+  .btn:active{transform:translateY(0);}
+  .btn.primary{background:var(--amber-500);color:var(--navy-900);border-color:var(--amber-500);}
+  .btn.primary:hover{background:var(--amber-600);color:#fff;}
+
+  /* ---------- Summary cards ---------- */
+  .summary-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 20px;}
+  .summary-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+    border-top:4px solid var(--amber-500);display:flex;align-items:center;gap:12px;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .summary-card:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(10,27,51,.12);}
+  .summary-card.grand{border-top-color:var(--navy-900);background:linear-gradient(135deg,#FBF3E7,#FFF7EA);}
+  .summary-card .icon{font-size:26px;line-height:1;}
+  .summary-card .label{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);font-weight:700;margin-bottom:4px;}
+  .summary-card .value{font-size:19px;font-weight:800;color:var(--navy-900);font-family:var(--mono);}
+
+  /* ---------- Assumptions bar ---------- */
+  .assump-bar{
+    display:flex;gap:24px;padding:16px 20px;border-radius:14px;margin-bottom:20px;flex-wrap:wrap;align-items:center;
+    background:linear-gradient(135deg,var(--navy-900),var(--navy-800));
+    box-shadow:0 4px 14px rgba(10,27,51,.18);
+  }
+  .assump-field label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--amber-500);margin-bottom:5px;font-weight:700;}
+  .assump-field input{width:90px;background:rgba(255,255,255,.09);border:1px solid var(--navy-line);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;font-family:var(--mono);}
+  .assump-field input:focus{outline:2px solid var(--amber-500);outline-offset:1px;}
+  .assump-note{color:#9FB0C8;font-size:12px;margin-left:auto;}
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex;gap:5px;margin-bottom:18px;flex-wrap:wrap;
+    background:var(--panel);padding:7px;border-radius:16px;border:1px solid var(--line);
+    box-shadow:0 1px 3px rgba(10,27,51,.05);
+  }
+  .tab-btn{
+    border:none;background:transparent;padding:9px 15px;border-radius:11px;font-size:13px;font-weight:700;
+    color:var(--ink-soft);cursor:pointer;letter-spacing:.2px;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:6px;transition:all .15s ease;
+  }
+  .tab-btn:hover{background:var(--line-soft);color:var(--navy-900);}
+  .tab-btn.active{
+    background:linear-gradient(135deg,var(--navy-900),var(--navy-700));
+    color:#fff;box-shadow:0 4px 10px rgba(10,27,51,.28);
+  }
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;animation:fadeIn .28s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .panel-toolbar{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .hint{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;}
+
+  /* ---------- Table ---------- */
+  .table-wrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto;box-shadow:0 2px 8px rgba(10,27,51,.05);max-height:70vh;}
+  table{border-collapse:collapse;width:100%;min-width:760px;}
+  thead th{background:var(--navy-900);color:#fff;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;padding:10px 6px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:2;}
+  thead th.left{text-align:left;padding-left:12px;}
+  tbody td{padding:6px 6px;border-bottom:1px solid var(--line-soft);text-align:center;font-size:13px;}
+  tbody tr:nth-child(even){background:#FAFBFD;}
+  tbody tr:hover{background:#F1F5FB;}
+  tbody tr.section-row td{background:linear-gradient(90deg,var(--amber-500),var(--amber-600));color:var(--navy-900);font-weight:800;text-align:left;padding-left:12px;text-transform:uppercase;font-size:11.5px;letter-spacing:.3px;}
+  td.left{text-align:left;padding-left:10px;font-weight:700;color:var(--navy-900);white-space:nowrap;}
+  input[type=number]{width:100%;min-width:66px;border:1px solid var(--amber-500);border-radius:7px;padding:5px 6px;font-family:var(--mono);font-size:12.5px;text-align:center;color:var(--ink);background:#FFFBF3;transition:box-shadow .12s ease;}
+  input[type=number]:focus{outline:none;box-shadow:0 0 0 3px rgba(223,163,85,.35);}
+  .computed{font-family:var(--mono);color:var(--ink);}
+  .computed.strong{font-weight:800;color:var(--navy-900);}
+  tfoot td{background:#FBF3E7;font-weight:800;color:var(--navy-900);padding:9px 6px;text-align:center;font-family:var(--mono);border-top:2px solid var(--amber-500);}
+  tfoot td.left{text-align:right;padding-right:14px;font-family:var(--sans);}
+
+  footer.tool-footer{margin-top:26px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
+
+  @media (max-width:720px){
+    .summary-bar{grid-template-columns:1fr 1fr;}
+    .topbar{flex-direction:column;align-items:flex-start;gap:14px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark" id="brandMark"></div>
+      <div class="brand-text">
+        <h1>PIPE COST ENGINE</h1>
+        <span class="subtitle">Pipes, Fittings & Valves ( Cost Estimation for Pipe Line Accessories & Fittings )</span>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="printBtn">🖨️ Print / PDF</button>
+      <button class="btn primary" id="exportExcelBtn">⬇️ Export Excel</button>
+    </div>
+  </div>
+
+  <div class="assump-bar">
+    <div class="assump-field"><label>VAT %</label><input type="number" id="vatInput" step="0.1"></div>
+    <div class="assump-field"><label>Installation &amp; Transport %</label><input type="number" id="instInput" step="0.1"></div>
+    <div class="assump-field"><label>Profit %</label><input type="number" id="profInput" step="0.1"></div>
+    <div class="assump-note">                 </div>
+  </div>
+
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <nav class="tabs" id="tabsNav"></nav>
+
+  <div id="panels"></div>
+
+  <footer class="tool-footer">Created by: Eng. Hesham Mohamed</footer>
+</div>
+
+<script>
+const DATA = {"cats": {"Pipe": [{"item": "Pipe", "size": "32 mm", "unit": "m", "qty": 0, "dry": 17.78, "orig_row": 3}, {"item": null, "size": "50 mm", "unit": "m", "qty": 0, "dry": 42.07, "orig_row": 4}, {"item": null, "size": "63 mm", "unit": "m", "qty": 0, "dry": 67.08, "orig_row": 5}, {"item": null, "size": "75 mm", "unit": "m", "qty": 0, "dry": 94.69, "orig_row": 6}, {"item": null, "size": "90 mm", "unit": "m", "qty": 0, "dry": 135.72, "orig_row": 7}, {"item": null, "size": "110 mm", "unit": "m", "qty": 0, "dry": 202.8, "orig_row": 8}, {"item": null, "size": "125 mm", "unit": "m", "qty": 0, "dry": 260.52, "orig_row": 9}, {"item": null, "size": "140 mm", "unit": "m", "qty": 0, "dry": 424.84, "orig_row": 10}, {"item": null, "size": "160 mm", "unit": "m", "qty": 0, "dry": 424.84, "orig_row": 11}, {"item": null, "size": "200 mm", "unit": "m", "qty": 0, "dry": 665.6, "orig_row": 12}, {"item": null, "size": "250 mm", "unit": "m", "qty": 0, "dry": 1034.8, "orig_row": 13}, {"item": null, "size": "315 mm", "unit": "m", "qty": 0, "dry": 1638, "orig_row": 14}, {"item": null, "size": "355 mm", "unit": "m", "qty": 0, "dry": 2074.8, "orig_row": 15}, {"item": null, "size": "400 mm", "unit": "m", "qty": 0, "dry": 2895.6, "orig_row": 16}], "Elbow 90": [{"item": "Elbow 90", "size": "32 mm", "unit": "N.o", "qty": 0, "dry": 11.06, "orig_row": 17}, {"item": null, "size": "50 mm", "unit": "N.o", "qty": 0, "dry": 30.3, "orig_row": 18}, {"item": null, "size": "63 mm", "unit": "N.o", "qty": 40, "dry": 49.9, "orig_row": 19}, {"item": null, "size": "75 mm", "unit": "N.o", "qty": 11, "dry": 88.7, "orig_row": 20}, {"item": null, "size": "90 mm", "unit": "N.o", "qty": 22, "dry": 135.3, "orig_row": 21}, {"item": null, "size": "110 mm", "unit": "N.o", "qty": 17, "dry": 228.6, "orig_row": 22}, {"item": null, "size": "125 mm", "unit": "N.o", "qty": 0, "dry": 434.9, "orig_row": 23}, {"item": null, "size": "140 mm", "unit": "N.o", "qty": 0, "dry": 662, "orig_row": 24}, {"item": null, "size": "160 mm", "unit": "N.o", "qty": 14, "dry": 726.4, "orig_row": 25}, {"item": null, "size": "200 mm", "unit": "N.o", "qty": 12, "dry": 1481.62, "orig_row": 26}, {"item": null, "size": "250 mm", "unit": "N.o", "qty": 18, "dry": 5053.17, "orig_row": 27}, {"item": null, "size": "315 mm", "unit": "N.o", "qty": 0, "dry": 12888.62, "orig_row": 28}, {"item": null, "size": "355 mm", "unit": "N.o", "qty": 0, "dry": 30789.54, "orig_row": 29}, {"item": null, "size": "400 mm", "unit": "N.o", "qty": 0, "dry": 31747.695, "orig_row": 30}], "Elbow 45": [{"item": "Elbow 45", "size": "32 mm", "unit": "N.o", "qty": 0, "dry": 15.238999999999999, "orig_row": 31}, {"item": null, "size": "50 mm", "unit": "N.o", "qty": 0, "dry": 36.672999999999995, "orig_row": 32}, {"item": null, "size": "63 mm", "unit": "N.o", "qty": 0, "dry": 55.573, "orig_row": 33}, {"item": null, "size": "75 mm", "unit": "N.o", "qty": 0, "dry": 105.31499999999998, "orig_row": 34}, {"item": null, "size": "90 mm", "unit": "N.o", "qty": 0, "dry": 151.14399999999998, "orig_row": 35}, {"item": null, "size": "110 mm", "unit": "N.o", "qty": 0, "dry": 296.81399999999996, "orig_row": 36}, {"item": null, "size": "125 mm", "unit": "N.o", "qty": 0, "dry": 378.525, "orig_row": 37}, {"item": null, "size": "140 mm", "unit": "N.o", "qty": 0, "dry": 573.111, "orig_row": 38}, {"item": null, "size": "160 mm", "unit": "N.o", "qty": 0, "dry": 573.909, "orig_row": 39}, {"item": null, "size": "200 mm", "unit": "N.o", "qty": 0, "dry": 1293.432, "orig_row": 40}, {"item": null, "size": "250 mm", "unit": "N.o", "qty": 0, "dry": 3817.835, "orig_row": 41}, {"item": null, "size": "315 mm", "unit": "N.o", "qty": 0, "dry": 11467.078, "orig_row": 42}, {"item": null, "size": "355 mm", "unit": "N.o", "qty": 0, "dry": 20375.382999999998, "orig_row": 43}, {"item": null, "size": "400 mm", "unit": "N.o", "qty": 0, "dry": 24734.765999999996, "orig_row": 44}], "Tee": [{"item": "Tee", "size": "32 mm", "unit": "N.o", "qty": 0, "dry": 20.594, "orig_row": 45}, {"item": null, "size": "50 mm", "unit": "N.o", "qty": 0, "dry": 42.42, "orig_row": 46}, {"item": null, "size": "63 mm", "unit": "N.o", "qty": 10, "dry": 61.04, "orig_row": 47}, {"item": null, "size": "75 mm", "unit": "N.o", "qty": 9, "dry": 114.051, "orig_row": 48}, {"item": null, "size": "90 mm", "unit": "N.o", "qty": 8, "dry": 209.076, "orig_row": 49}, {"item": null, "size": "110 mm", "unit": "N.o", "qty": 12, "dry": 331.737, "orig_row": 50}, {"item": null, "size": "125 mm", "unit": "N.o", "qty": 0, "dry": 610.183, "orig_row": 51}, {"item": null, "size": "140 mm", "unit": "N.o", "qty": 0, "dry": 803.215, "orig_row": 52}, {"item": null, "size": "160 mm", "unit": "N.o", "qty": 4, "dry": 931.3639999999999, "orig_row": 53}, {"item": null, "size": "200 mm", "unit": "N.o", "qty": 4, "dry": 1736.686, "orig_row": 54}, {"item": null, "size": "250 mm", "unit": "N.o", "qty": 3, "dry": 5516.014, "orig_row": 55}, {"item": null, "size": "315 mm", "unit": "N.o", "qty": 0, "dry": 15068.305, "orig_row": 56}, {"item": null, "size": "355 mm", "unit": "N.o", "qty": 0, "dry": 34116.922, "orig_row": 57}, {"item": null, "size": "400 mm", "unit": "N.o", "qty": 0, "dry": 34116.922, "orig_row": 58}], "Reducer": [{"item": "Reducer", "size": "50/32", "unit": "N.o", "qty": 0, "dry": 14.559999999999999, "orig_row": 59}, {"item": null, "size": "63/50", "unit": "N.o", "qty": 0, "dry": 35.748999999999995, "orig_row": 60}, {"item": null, "size": "63/32", "unit": "N.o", "qty": 0, "dry": 48.69899999999999, "orig_row": 61}, {"item": null, "size": "75/63", "unit": "N.o", "qty": 0, "dry": 63.14, "orig_row": 62}, {"item": null, "size": "75/50", "unit": "N.o", "qty": 0, "dry": 64.967, "orig_row": 63}, {"item": null, "size": "75/32", "unit": "N.o", "qty": 0, "dry": 48.69899999999999, "orig_row": 64}, {"item": null, "size": "90/75", "unit": "N.o", "qty": 0, "dry": 85.981, "orig_row": 65}, {"item": null, "size": "90/63", "unit": "N.o", "qty": 0, "dry": 85.981, "orig_row": 66}, {"item": null, "size": "90/50", "unit": "N.o", "qty": 0, "dry": 88.473, "orig_row": 67}, {"item": null, "size": "90/32", "unit": "N.o", "qty": 0, "dry": 103.03299999999999, "orig_row": 68}, {"item": null, "size": "110/90", "unit": "N.o", "qty": 0, "dry": 133.252, "orig_row": 69}, {"item": null, "size": "110/75", "unit": "N.o", "qty": 0, "dry": 137.15099999999998, "orig_row": 70}, {"item": null, "size": "110/63", "unit": "N.o", "qty": 0, "dry": 137.15099999999998, "orig_row": 71}, {"item": null, "size": "110/50", "unit": "N.o", "qty": 0, "dry": 173.005, "orig_row": 72}, {"item": null, "size": "110/32", "unit": "N.o", "qty": 0, "dry": 187.56499999999997, "orig_row": 73}, {"item": null, "size": "125/110", "unit": "N.o", "qty": 0, "dry": 544.922, "orig_row": 74}, {"item": null, "size": "125/90", "unit": "N.o", "qty": 0, "dry": 544.922, "orig_row": 75}, {"item": null, "size": "125/75", "unit": "N.o", "qty": 0, "dry": 682.073, "orig_row": 76}, {"item": null, "size": "125/63", "unit": "N.o", "qty": 0, "dry": 682.073, "orig_row": 77}, {"item": null, "size": "125/50", "unit": "N.o", "qty": 0, "dry": 717.927, "orig_row": 78}, {"item": null, "size": "125/32", "unit": "N.o", "qty": 0, "dry": 732.487, "orig_row": 79}, {"item": null, "size": "140 / 125", "unit": "N.o", "qty": 0, "dry": 871.8779999999999, "orig_row": 80}, {"item": null, "size": "140 / 110", "unit": "N.o", "qty": 0, "dry": 871.8779999999999, "orig_row": 81}, {"item": null, "size": "140 / 90", "unit": "N.o", "qty": 0, "dry": 871.8779999999999, "orig_row": 82}, {"item": null, "size": "140 / 75", "unit": "N.o", "qty": 0, "dry": 957.8589999999998, "orig_row": 83}, {"item": null, "size": "140 / 63", "unit": "N.o", "qty": 0, "dry": 957.8589999999998, "orig_row": 84}, {"item": null, "size": "140 / 50", "unit": "N.o", "qty": 0, "dry": 960.351, "orig_row": 85}, {"item": null, "size": "140 / 32", "unit": "N.o", "qty": 0, "dry": 974.911, "orig_row": 86}, {"item": null, "size": "160 / 140", "unit": "N.o", "qty": 0, "dry": 807.996, "orig_row": 87}, {"item": null, "size": "160 / 125", "unit": "N.o", "qty": 0, "dry": 1679.8739999999998, "orig_row": 88}, {"item": null, "size": "160 / 110", "unit": "N.o", "qty": 0, "dry": 396.522, "orig_row": 89}, {"item": null, "size": "160 / 90", "unit": "N.o", "qty": 0, "dry": 485.48499999999996, "orig_row": 90}, {"item": null, "size": "160 / 75", "unit": "N.o", "qty": 0, "dry": 571.466, "orig_row": 91}, {"item": null, "size": "160 / 63", "unit": "N.o", "qty": 0, "dry": 571.466, "orig_row": 92}, {"item": null, "size": "160 / 50", "unit": "N.o", "qty": 0, "dry": 573.958, "orig_row": 93}, {"item": null, "size": "160 / 32", "unit": "N.o", "qty": 0, "dry": 588.5179999999999, "orig_row": 94}, {"item": null, "size": "200 /160", "unit": "N.o", "qty": 0, "dry": 976.962, "orig_row": 95}, {"item": null, "size": "200 /140", "unit": "N.o", "qty": 0, "dry": 1784.9579999999999, "orig_row": 96}, {"item": null, "size": "200 /125", "unit": "N.o", "qty": 0, "dry": 2656.8359999999993, "orig_row": 97}, {"item": null, "size": "200 /110", "unit": "N.o", "qty": 0, "dry": 1200.829, "orig_row": 98}, {"item": null, "size": "200 / 90", "unit": "N.o", "qty": 0, "dry": 1334.081, "orig_row": 99}, {"item": null, "size": "200 /75", "unit": "N.o", "qty": 0, "dry": 1337.98, "orig_row": 100}, {"item": null, "size": "200 /63", "unit": "N.o", "qty": 0, "dry": 1337.98, "orig_row": 101}, {"item": null, "size": "200 /50", "unit": "N.o", "qty": 0, "dry": 1373.834, "orig_row": 102}, {"item": null, "size": "200 /32", "unit": "N.o", "qty": 0, "dry": 1388.394, "orig_row": 103}, {"item": null, "size": "250/200", "unit": "N.o", "qty": 0, "dry": 3601.2339999999995, "orig_row": 104}, {"item": null, "size": "250 /160", "unit": "N.o", "qty": 0, "dry": 3601.2339999999995, "orig_row": 105}, {"item": null, "size": "250 /140", "unit": "N.o", "qty": 0, "dry": 4409.23, "orig_row": 106}, {"item": null, "size": "250 /125", "unit": "N.o", "qty": 0, "dry": 5281.107999999999, "orig_row": 107}, {"item": null, "size": "250 /110", "unit": "N.o", "qty": 0, "dry": 3825.682, "orig_row": 108}, {"item": null, "size": "250 / 90", "unit": "N.o", "qty": 0, "dry": 3958.9339999999997, "orig_row": 109}, {"item": null, "size": "250 /75", "unit": "N.o", "qty": 0, "dry": 3962.833, "orig_row": 110}, {"item": null, "size": "250 /63", "unit": "N.o", "qty": 0, "dry": 3962.833, "orig_row": 111}, {"item": null, "size": "250 /50", "unit": "N.o", "qty": 0, "dry": 3998.6869999999994, "orig_row": 112}, {"item": null, "size": "250 /32", "unit": "N.o", "qty": 0, "dry": 4013.247, "orig_row": 113}, {"item": null, "size": "315/250", "unit": "N.o", "qty": 0, "dry": 6065.234, "orig_row": 114}, {"item": null, "size": "315 /200", "unit": "N.o", "qty": 0, "dry": 8300.466999999999, "orig_row": 115}, {"item": null, "size": "315 /160", "unit": "N.o", "qty": 0, "dry": 8300.466999999999, "orig_row": 116}, {"item": null, "size": "315 /140", "unit": "N.o", "qty": 0, "dry": 9108.463, "orig_row": 117}, {"item": null, "size": "315 /125", "unit": "N.o", "qty": 0, "dry": 9980.340999999999, "orig_row": 118}, {"item": null, "size": "315 /110", "unit": "N.o", "qty": 0, "dry": 8696.989, "orig_row": 119}, {"item": null, "size": "315 / 90", "unit": "N.o", "qty": 0, "dry": 8785.952, "orig_row": 120}, {"item": null, "size": "315 /75", "unit": "N.o", "qty": 0, "dry": 8871.932999999999, "orig_row": 121}, {"item": null, "size": "315 /63", "unit": "N.o", "qty": 0, "dry": 8871.932999999999, "orig_row": 122}, {"item": null, "size": "315 /50", "unit": "N.o", "qty": 0, "dry": 8874.425, "orig_row": 123}, {"item": null, "size": "315 /32", "unit": "N.o", "qty": 0, "dry": 8888.984999999999, "orig_row": 124}, {"item": null, "size": "355/315", "unit": "N.o", "qty": 0, "dry": 12387.269999999999, "orig_row": 125}, {"item": null, "size": "355/250", "unit": "N.o", "qty": 0, "dry": 18452.504, "orig_row": 126}, {"item": null, "size": "355 /200", "unit": "N.o", "qty": 0, "dry": 20687.736999999997, "orig_row": 127}, {"item": "Reducer", "size": "355 /160", "unit": "N.o", "qty": 0, "dry": 20687.736999999997, "orig_row": 128}, {"item": null, "size": "355 /140", "unit": "N.o", "qty": 0, "dry": 21495.732999999997, "orig_row": 129}, {"item": null, "size": "355 /125", "unit": "N.o", "qty": 0, "dry": 22367.610999999997, "orig_row": 130}, {"item": null, "size": "355 /110", "unit": "N.o", "qty": 0, "dry": 21084.259, "orig_row": 131}, {"item": null, "size": "355 / 90", "unit": "N.o", "qty": 0, "dry": 21173.221999999998, "orig_row": 132}, {"item": null, "size": "355 /75", "unit": "N.o", "qty": 0, "dry": 21259.202999999998, "orig_row": 133}, {"item": null, "size": "355 /63", "unit": "N.o", "qty": 0, "dry": 21259.202999999998, "orig_row": 134}, {"item": null, "size": "355 /50", "unit": "N.o", "qty": 0, "dry": 21261.694999999996, "orig_row": 135}, {"item": null, "size": "355 /32", "unit": "N.o", "qty": 0, "dry": 21276.254999999997, "orig_row": 136}, {"item": null, "size": "400 /355", "unit": "N.o", "qty": 0, "dry": 14436.197999999999, "orig_row": 137}, {"item": null, "size": "400/315", "unit": "N.o", "qty": 0, "dry": 14436.197999999999, "orig_row": 138}, {"item": null, "size": "400/250", "unit": "N.o", "qty": 0, "dry": 14436.197999999999, "orig_row": 139}, {"item": null, "size": "400 /200", "unit": "N.o", "qty": 0, "dry": 16671.431, "orig_row": 140}, {"item": null, "size": "400 /160", "unit": "N.o", "qty": 0, "dry": 17648.393, "orig_row": 141}, {"item": null, "size": "400 /140", "unit": "N.o", "qty": 0, "dry": 18456.389, "orig_row": 142}, {"item": null, "size": "400 /125", "unit": "N.o", "qty": 0, "dry": 19328.267, "orig_row": 143}, {"item": null, "size": "400 /110", "unit": "N.o", "qty": 0, "dry": 17872.260000000002, "orig_row": 144}, {"item": null, "size": "400 / 90", "unit": "N.o", "qty": 0, "dry": 18005.512000000002, "orig_row": 145}, {"item": null, "size": "400 /75", "unit": "N.o", "qty": 0, "dry": 18009.411, "orig_row": 146}, {"item": null, "size": "400 /63", "unit": "N.o", "qty": 0, "dry": 18009.411, "orig_row": 147}, {"item": null, "size": "400 /50", "unit": "N.o", "qty": 0, "dry": 18045.265, "orig_row": 148}, {"item": null, "size": "400 /32", "unit": "N.o", "qty": 0, "dry": 18059.824999999997, "orig_row": 149}], "Bush": [{"item": "Bush", "size": "50/32", "unit": "N.o", "qty": 0, "dry": 9.548, "orig_row": 150}, {"item": null, "size": "63/50", "unit": "N.o", "qty": 0, "dry": 19.124, "orig_row": 151}, {"item": null, "size": "63/32", "unit": "N.o", "qty": 4, "dry": 18.585, "orig_row": 152}, {"item": null, "size": "75/63", "unit": "N.o", "qty": 13, "dry": 20.804, "orig_row": 153}, {"item": null, "size": "75/50", "unit": "N.o", "qty": 0, "dry": 21.413, "orig_row": 154}, {"item": null, "size": "75/32", "unit": "N.o", "qty": 0, "dry": 21.419999999999998, "orig_row": 155}, {"item": null, "size": "90/75", "unit": "N.o", "qty": 3, "dry": 55.867, "orig_row": 156}, {"item": null, "size": "90/63", "unit": "N.o", "qty": 6, "dry": 55.867, "orig_row": 157}, {"item": null, "size": "90/50", "unit": "N.o", "qty": 0, "dry": 57.477, "orig_row": 158}, {"item": null, "size": "90/32", "unit": "N.o", "qty": 0, "dry": 67.02499999999999, "orig_row": 159}, {"item": null, "size": "110/90", "unit": "N.o", "qty": 7, "dry": 89.257, "orig_row": 160}, {"item": null, "size": "110/75", "unit": "N.o", "qty": 0, "dry": 89.257, "orig_row": 161}, {"item": null, "size": "110/63", "unit": "N.o", "qty": 11, "dry": 89.257, "orig_row": 162}, {"item": null, "size": "110/50", "unit": "N.o", "qty": 0, "dry": 116.51499999999999, "orig_row": 163}, {"item": null, "size": "110/32", "unit": "N.o", "qty": 0, "dry": 126.06299999999997, "orig_row": 164}, {"item": null, "size": "125/110", "unit": "N.o", "qty": 0, "dry": 186.97, "orig_row": 165}, {"item": null, "size": "125/90", "unit": "N.o", "qty": 0, "dry": 388.556, "orig_row": 166}, {"item": null, "size": "125/75", "unit": "N.o", "qty": 0, "dry": 388.556, "orig_row": 167}, {"item": null, "size": "125/63", "unit": "N.o", "qty": 0, "dry": 276.227, "orig_row": 168}, {"item": null, "size": "125/50", "unit": "N.o", "qty": 0, "dry": 303.485, "orig_row": 169}, {"item": null, "size": "125/32", "unit": "N.o", "qty": 0, "dry": 313.03299999999996, "orig_row": 170}, {"item": null, "size": "140 / 125", "unit": "N.o", "qty": 0, "dry": 200.851, "orig_row": 171}, {"item": null, "size": "140 / 110", "unit": "N.o", "qty": 0, "dry": 502.27799999999996, "orig_row": 172}, {"item": null, "size": "140 / 90", "unit": "N.o", "qty": 0, "dry": 502.27799999999996, "orig_row": 173}, {"item": null, "size": "140 / 75", "unit": "N.o", "qty": 0, "dry": 589.295, "orig_row": 174}, {"item": null, "size": "140 / 63", "unit": "N.o", "qty": 0, "dry": 477.0779999999999, "orig_row": 175}, {"item": null, "size": "140 / 50", "unit": "N.o", "qty": 0, "dry": 504.33599999999996, "orig_row": 176}, {"item": null, "size": "140 / 32", "unit": "N.o", "qty": 0, "dry": 513.884, "orig_row": 177}, {"item": null, "size": "160 / 140", "unit": "N.o", "qty": 0, "dry": 433.524, "orig_row": 178}, {"item": null, "size": "160 / 125", "unit": "N.o", "qty": 0, "dry": 240.40099999999998, "orig_row": 179}, {"item": null, "size": "160 / 110", "unit": "N.o", "qty": 2, "dry": 224.58799999999997, "orig_row": 180}, {"item": null, "size": "160 / 90", "unit": "N.o", "qty": 4, "dry": 224.58799999999997, "orig_row": 181}, {"item": null, "size": "160 / 75", "unit": "N.o", "qty": 0, "dry": 280.28, "orig_row": 182}, {"item": null, "size": "160 / 63", "unit": "N.o", "qty": 0, "dry": 280.28, "orig_row": 183}, {"item": null, "size": "160 / 50", "unit": "N.o", "qty": 0, "dry": 299.40399999999994, "orig_row": 184}, {"item": null, "size": "160 / 32", "unit": "N.o", "qty": 0, "dry": 298.86499999999995, "orig_row": 185}, {"item": null, "size": "200 /160", "unit": "N.o", "qty": 2, "dry": 501.80199999999996, "orig_row": 186}, {"item": null, "size": "200 /140", "unit": "N.o", "qty": 0, "dry": 935.326, "orig_row": 187}, {"item": null, "size": "200 /125", "unit": "N.o", "qty": 2, "dry": 742.203, "orig_row": 188}, {"item": null, "size": "200 /110", "unit": "N.o", "qty": 0, "dry": 726.39, "orig_row": 189}, {"item": null, "size": "200 / 90", "unit": "N.o", "qty": 4, "dry": 726.39, "orig_row": 190}, {"item": null, "size": "200 /75", "unit": "N.o", "qty": 0, "dry": 782.082, "orig_row": 191}, {"item": null, "size": "200 /63", "unit": "N.o", "qty": 0, "dry": 782.082, "orig_row": 192}, {"item": null, "size": "200 /50", "unit": "N.o", "qty": 0, "dry": 801.2059999999999, "orig_row": 193}, {"item": null, "size": "200 /32", "unit": "N.o", "qty": 0, "dry": 800.6669999999999, "orig_row": 194}, {"item": null, "size": "250/200", "unit": "N.o", "qty": 0, "dry": 2236.5699999999997, "orig_row": 195}, {"item": null, "size": "250 /160", "unit": "N.o", "qty": 6, "dry": 2236.5699999999997, "orig_row": 196}, {"item": "Bush", "size": "250 /140", "unit": "N.o", "qty": 0, "dry": 2670.094, "orig_row": 197}, {"item": null, "size": "250 /125", "unit": "N.o", "qty": 0, "dry": 2476.9709999999995, "orig_row": 198}, {"item": null, "size": "250 /110", "unit": "N.o", "qty": 0, "dry": 2459.688, "orig_row": 199}, {"item": null, "size": "250 / 90", "unit": "N.o", "qty": 0, "dry": 2548.945, "orig_row": 200}, {"item": null, "size": "250 /75", "unit": "N.o", "qty": 0, "dry": 2548.945, "orig_row": 201}, {"item": null, "size": "250 /63", "unit": "N.o", "qty": 0, "dry": 2548.945, "orig_row": 202}, {"item": null, "size": "250 /50", "unit": "N.o", "qty": 0, "dry": 2576.203, "orig_row": 203}, {"item": null, "size": "250 /32", "unit": "N.o", "qty": 0, "dry": 2585.751, "orig_row": 204}, {"item": null, "size": "315/250", "unit": "N.o", "qty": 0, "dry": 4615.2609999999995, "orig_row": 205}, {"item": null, "size": "315 /200", "unit": "N.o", "qty": 0, "dry": 4615.2609999999995, "orig_row": 206}, {"item": null, "size": "315 /160", "unit": "N.o", "qty": 0, "dry": 5116.762, "orig_row": 207}, {"item": null, "size": "315 /140", "unit": "N.o", "qty": 0, "dry": 5550.285999999999, "orig_row": 208}, {"item": null, "size": "315 /125", "unit": "N.o", "qty": 0, "dry": 5357.163, "orig_row": 209}, {"item": null, "size": "315 /110", "unit": "N.o", "qty": 0, "dry": 5341.217, "orig_row": 210}, {"item": null, "size": "315 / 90", "unit": "N.o", "qty": 0, "dry": 5430.474, "orig_row": 211}, {"item": null, "size": "315 /75", "unit": "N.o", "qty": 0, "dry": 5430.474, "orig_row": 212}, {"item": null, "size": "315 /63", "unit": "N.o", "qty": 0, "dry": 5430.474, "orig_row": 213}, {"item": null, "size": "315 /50", "unit": "N.o", "qty": 0, "dry": 5457.732, "orig_row": 214}, {"item": null, "size": "315 /32", "unit": "N.o", "qty": 0, "dry": 5467.28, "orig_row": 215}, {"item": null, "size": "355/315", "unit": "N.o", "qty": 0, "dry": 5563.879999999999, "orig_row": 216}, {"item": null, "size": "355/250", "unit": "N.o", "qty": 0, "dry": 10179.141, "orig_row": 217}, {"item": null, "size": "355 /200", "unit": "N.o", "qty": 0, "dry": 10179.141, "orig_row": 218}, {"item": null, "size": "355 /160", "unit": "N.o", "qty": 0, "dry": 10680.943, "orig_row": 219}, {"item": null, "size": "355 /140", "unit": "N.o", "qty": 0, "dry": 11114.466999999999, "orig_row": 220}, {"item": null, "size": "355 /125", "unit": "N.o", "qty": 0, "dry": 10921.343999999997, "orig_row": 221}, {"item": null, "size": "355 /110", "unit": "N.o", "qty": 0, "dry": 10905.530999999999, "orig_row": 222}, {"item": null, "size": "355 / 90", "unit": "N.o", "qty": 0, "dry": 10905.530999999999, "orig_row": 223}, {"item": null, "size": "355 /75", "unit": "N.o", "qty": 0, "dry": 10961.222999999998, "orig_row": 224}, {"item": null, "size": "355 /63", "unit": "N.o", "qty": 0, "dry": 10961.222999999998, "orig_row": 225}, {"item": null, "size": "355 /50", "unit": "N.o", "qty": 0, "dry": 10980.346999999998, "orig_row": 226}, {"item": null, "size": "355 /32", "unit": "N.o", "qty": 0, "dry": 10979.807999999999, "orig_row": 227}, {"item": null, "size": "400 /355", "unit": "N.o", "qty": 0, "dry": 6949.424999999999, "orig_row": 228}, {"item": null, "size": "400/315", "unit": "N.o", "qty": 0, "dry": 6949.424999999999, "orig_row": 229}, {"item": null, "size": "400/250", "unit": "N.o", "qty": 0, "dry": 6949.424999999999, "orig_row": 230}, {"item": null, "size": "400 /200", "unit": "N.o", "qty": 0, "dry": 9184.658, "orig_row": 231}, {"item": null, "size": "400 /160", "unit": "N.o", "qty": 0, "dry": 9686.460000000001, "orig_row": 232}, {"item": null, "size": "400 /140", "unit": "N.o", "qty": 0, "dry": 10119.984, "orig_row": 233}, {"item": null, "size": "400 /125", "unit": "N.o", "qty": 0, "dry": 9926.860999999999, "orig_row": 234}, {"item": null, "size": "400 /110", "unit": "N.o", "qty": 0, "dry": 9911.048, "orig_row": 235}, {"item": null, "size": "400 / 90", "unit": "N.o", "qty": 0, "dry": 9911.048, "orig_row": 236}, {"item": null, "size": "400 /75", "unit": "N.o", "qty": 0, "dry": 9966.74, "orig_row": 237}, {"item": null, "size": "400 /63", "unit": "N.o", "qty": 0, "dry": 9966.74, "orig_row": 238}, {"item": null, "size": "400 /50", "unit": "N.o", "qty": 0, "dry": 9985.864, "orig_row": 239}, {"item": null, "size": "400 /32", "unit": "N.o", "qty": 0, "dry": 9985.324999999999, "orig_row": 240}]}, "weld": [{"orig_row": 243, "size": "32 mm", "qty_per_joint": 20, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 17, "coeff": 2}, {"cat": "Elbow 45", "row": 31, "coeff": 2}, {"cat": "Tee", "row": 45, "coeff": 3}], "expected_joints": 0}, {"orig_row": 244, "size": "50 mm", "qty_per_joint": 30, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 18, "coeff": 2}, {"cat": "Elbow 45", "row": 32, "coeff": 2}, {"cat": "Tee", "row": 46, "coeff": 3}, {"cat": "Reducer", "row": 59, "coeff": 2}, {"cat": "Bush", "row": 150, "coeff": 2}], "expected_joints": 0}, {"orig_row": 245, "size": "63 mm", "qty_per_joint": 50, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 19, "coeff": 2}, {"cat": "Elbow 45", "row": 33, "coeff": 2}, {"cat": "Tee", "row": 47, "coeff": 3}, {"cat": "Reducer", "row": 60, "coeff": 2}, {"cat": "Reducer", "row": 61, "coeff": 2}, {"cat": "Bush", "row": 151, "coeff": 2}, {"cat": "Bush", "row": 152, "coeff": 2}], "expected_joints": 118}, {"orig_row": 246, "size": "75 mm", "qty_per_joint": 100, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 20, "coeff": 2}, {"cat": "Elbow 45", "row": 34, "coeff": 2}, {"cat": "Tee", "row": 48, "coeff": 3}, {"cat": "Reducer", "row": 63, "coeff": 2}, {"cat": "Reducer", "row": 62, "coeff": 2}, {"cat": "Reducer", "row": 64, "coeff": 2}, {"cat": "Bush", "row": 153, "coeff": 2}, {"cat": "Bush", "row": 154, "coeff": 2}, {"cat": "Bush", "row": 155, "coeff": 2}], "expected_joints": 75}, {"orig_row": 247, "size": "90 mm", "qty_per_joint": 150, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 21, "coeff": 2}, {"cat": "Elbow 45", "row": 35, "coeff": 2}, {"cat": "Tee", "row": 49, "coeff": 3}, {"cat": "Reducer", "row": 66, "coeff": 2}, {"cat": "Reducer", "row": 67, "coeff": 2}, {"cat": "Reducer", "row": 65, "coeff": 2}, {"cat": "Reducer", "row": 68, "coeff": 2}, {"cat": "Bush", "row": 156, "coeff": 2}, {"cat": "Bush", "row": 157, "coeff": 2}, {"cat": "Bush", "row": 158, "coeff": 2}, {"cat": "Bush", "row": 159, "coeff": 2}], "expected_joints": 86}, {"orig_row": 248, "size": "110 mm", "qty_per_joint": 180, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 22, "coeff": 2}, {"cat": "Elbow 45", "row": 36, "coeff": 2}, {"cat": "Tee", "row": 50, "coeff": 3}, {"cat": "Reducer", "row": 71, "coeff": 2}, {"cat": "Reducer", "row": 70, "coeff": 2}, {"cat": "Reducer", "row": 72, "coeff": 2}, {"cat": "Reducer", "row": 69, "coeff": 2}, {"cat": "Reducer", "row": 73, "coeff": 2}, {"cat": "Bush", "row": 160, "coeff": 2}, {"cat": "Bush", "row": 161, "coeff": 2}, {"cat": "Bush", "row": 162, "coeff": 2}, {"cat": "Bush", "row": 163, "coeff": 2}, {"cat": "Bush", "row": 164, "coeff": 2}], "expected_joints": 106}, {"orig_row": 249, "size": "125 mm", "qty_per_joint": 185, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 23, "coeff": 2}, {"cat": "Elbow 45", "row": 37, "coeff": 2}, {"cat": "Tee", "row": 51, "coeff": 3}, {"cat": "Reducer", "row": 76, "coeff": 2}, {"cat": "Reducer", "row": 77, "coeff": 2}, {"cat": "Reducer", "row": 75, "coeff": 2}, {"cat": "Reducer", "row": 78, "coeff": 2}, {"cat": "Reducer", "row": 74, "coeff": 2}, {"cat": "Reducer", "row": 79, "coeff": 2}, {"cat": "Bush", "row": 165, "coeff": 2}, {"cat": "Bush", "row": 166, "coeff": 2}, {"cat": "Bush", "row": 167, "coeff": 2}, {"cat": "Bush", "row": 168, "coeff": 2}, {"cat": "Bush", "row": 169, "coeff": 2}, {"cat": "Bush", "row": 170, "coeff": 2}], "expected_joints": 0}, {"orig_row": 250, "size": "140 mm", "qty_per_joint": 190, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 24, "coeff": 2}, {"cat": "Elbow 45", "row": 38, "coeff": 2}, {"cat": "Tee", "row": 52, "coeff": 3}, {"cat": "Reducer", "row": 83, "coeff": 2}, {"cat": "Reducer", "row": 82, "coeff": 2}, {"cat": "Reducer", "row": 84, "coeff": 2}, {"cat": "Reducer", "row": 81, "coeff": 2}, {"cat": "Reducer", "row": 85, "coeff": 2}, {"cat": "Reducer", "row": 80, "coeff": 2}, {"cat": "Reducer", "row": 86, "coeff": 2}, {"cat": "Bush", "row": 171, "coeff": 2}, {"cat": "Bush", "row": 172, "coeff": 2}, {"cat": "Bush", "row": 173, "coeff": 2}, {"cat": "Bush", "row": 174, "coeff": 2}, {"cat": "Bush", "row": 175, "coeff": 2}, {"cat": "Bush", "row": 176, "coeff": 2}, {"cat": "Bush", "row": 177, "coeff": 2}], "expected_joints": 0}, {"orig_row": 251, "size": "160 mm", "qty_per_joint": 200, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 25, "coeff": 2}, {"cat": "Elbow 45", "row": 39, "coeff": 2}, {"cat": "Tee", "row": 53, "coeff": 3}, {"cat": "Reducer", "row": 91, "coeff": 2}, {"cat": "Reducer", "row": 90, "coeff": 2}, {"cat": "Reducer", "row": 92, "coeff": 2}, {"cat": "Reducer", "row": 89, "coeff": 2}, {"cat": "Reducer", "row": 93, "coeff": 2}, {"cat": "Reducer", "row": 88, "coeff": 2}, {"cat": "Reducer", "row": 87, "coeff": 2}, {"cat": "Reducer", "row": 94, "coeff": 2}, {"cat": "Bush", "row": 178, "coeff": 2}, {"cat": "Bush", "row": 179, "coeff": 2}, {"cat": "Bush", "row": 180, "coeff": 2}, {"cat": "Bush", "row": 181, "coeff": 2}, {"cat": "Bush", "row": 182, "coeff": 2}, {"cat": "Bush", "row": 183, "coeff": 2}, {"cat": "Bush", "row": 184, "coeff": 2}, {"cat": "Bush", "row": 185, "coeff": 2}], "expected_joints": 52}, {"orig_row": 252, "size": "200 mm", "qty_per_joint": 350, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 26, "coeff": 2}, {"cat": "Elbow 45", "row": 40, "coeff": 2}, {"cat": "Tee", "row": 54, "coeff": 3}, {"cat": "Reducer", "row": 100, "coeff": 2}, {"cat": "Reducer", "row": 99, "coeff": 2}, {"cat": "Reducer", "row": 101, "coeff": 2}, {"cat": "Reducer", "row": 98, "coeff": 2}, {"cat": "Reducer", "row": 102, "coeff": 2}, {"cat": "Reducer", "row": 97, "coeff": 2}, {"cat": "Reducer", "row": 96, "coeff": 2}, {"cat": "Reducer", "row": 95, "coeff": 2}, {"cat": "Reducer", "row": 103, "coeff": 2}, {"cat": "Bush", "row": 186, "coeff": 2}, {"cat": "Bush", "row": 187, "coeff": 2}, {"cat": "Bush", "row": 188, "coeff": 2}, {"cat": "Bush", "row": 189, "coeff": 2}, {"cat": "Bush", "row": 190, "coeff": 2}, {"cat": "Bush", "row": 191, "coeff": 2}, {"cat": "Bush", "row": 192, "coeff": 2}, {"cat": "Bush", "row": 193, "coeff": 2}, {"cat": "Bush", "row": 194, "coeff": 2}], "expected_joints": 52}, {"orig_row": 253, "size": "250 mm", "qty_per_joint": 450, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 27, "coeff": 2}, {"cat": "Elbow 45", "row": 41, "coeff": 2}, {"cat": "Tee", "row": 55, "coeff": 3}, {"cat": "Reducer", "row": 110, "coeff": 2}, {"cat": "Reducer", "row": 109, "coeff": 2}, {"cat": "Reducer", "row": 111, "coeff": 2}, {"cat": "Reducer", "row": 108, "coeff": 2}, {"cat": "Reducer", "row": 112, "coeff": 2}, {"cat": "Reducer", "row": 107, "coeff": 2}, {"cat": "Reducer", "row": 106, "coeff": 2}, {"cat": "Reducer", "row": 105, "coeff": 2}, {"cat": "Reducer", "row": 104, "coeff": 2}, {"cat": "Reducer", "row": 113, "coeff": 2}, {"cat": "Bush", "row": 195, "coeff": 2}, {"cat": "Bush", "row": 196, "coeff": 2}, {"cat": "Bush", "row": 197, "coeff": 2}, {"cat": "Bush", "row": 198, "coeff": 2}, {"cat": "Bush", "row": 199, "coeff": 2}, {"cat": "Bush", "row": 200, "coeff": 2}, {"cat": "Bush", "row": 201, "coeff": 2}, {"cat": "Bush", "row": 202, "coeff": 2}, {"cat": "Bush", "row": 203, "coeff": 2}, {"cat": "Bush", "row": 204, "coeff": 2}], "expected_joints": 57}, {"orig_row": 254, "size": "315 mm", "qty_per_joint": 650, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 28, "coeff": 2}, {"cat": "Elbow 45", "row": 42, "coeff": 2}, {"cat": "Tee", "row": 56, "coeff": 3}, {"cat": "Reducer", "row": 121, "coeff": 2}, {"cat": "Reducer", "row": 120, "coeff": 2}, {"cat": "Reducer", "row": 122, "coeff": 2}, {"cat": "Reducer", "row": 119, "coeff": 2}, {"cat": "Reducer", "row": 123, "coeff": 2}, {"cat": "Reducer", "row": 118, "coeff": 2}, {"cat": "Reducer", "row": 117, "coeff": 2}, {"cat": "Reducer", "row": 116, "coeff": 2}, {"cat": "Reducer", "row": 115, "coeff": 2}, {"cat": "Reducer", "row": 114, "coeff": 2}, {"cat": "Reducer", "row": 124, "coeff": 2}, {"cat": "Bush", "row": 205, "coeff": 2}, {"cat": "Bush", "row": 206, "coeff": 2}, {"cat": "Bush", "row": 207, "coeff": 2}, {"cat": "Bush", "row": 208, "coeff": 2}, {"cat": "Bush", "row": 209, "coeff": 2}, {"cat": "Bush", "row": 210, "coeff": 2}, {"cat": "Bush", "row": 211, "coeff": 2}, {"cat": "Bush", "row": 212, "coeff": 2}, {"cat": "Bush", "row": 213, "coeff": 2}, {"cat": "Bush", "row": 214, "coeff": 2}, {"cat": "Bush", "row": 215, "coeff": 2}], "expected_joints": 0}, {"orig_row": 255, "size": "355 mm", "qty_per_joint": 750, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 29, "coeff": 2}, {"cat": "Elbow 45", "row": 43, "coeff": 2}, {"cat": "Tee", "row": 57, "coeff": 3}, {"cat": "Reducer", "row": 132, "coeff": 2}, {"cat": "Reducer", "row": 131, "coeff": 2}, {"cat": "Reducer", "row": 133, "coeff": 2}, {"cat": "Reducer", "row": 131, "coeff": 2}, {"cat": "Reducer", "row": 134, "coeff": 2}, {"cat": "Reducer", "row": 130, "coeff": 2}, {"cat": "Reducer", "row": 129, "coeff": 2}, {"cat": "Reducer", "row": 128, "coeff": 2}, {"cat": "Reducer", "row": 127, "coeff": 2}, {"cat": "Reducer", "row": 126, "coeff": 2}, {"cat": "Reducer", "row": 125, "coeff": 2}, {"cat": "Reducer", "row": 135, "coeff": 2}, {"cat": "Reducer", "row": 136, "coeff": 2}, {"cat": "Bush", "row": 216, "coeff": 2}, {"cat": "Bush", "row": 217, "coeff": 2}, {"cat": "Bush", "row": 218, "coeff": 2}, {"cat": "Bush", "row": 219, "coeff": 2}, {"cat": "Bush", "row": 220, "coeff": 2}, {"cat": "Bush", "row": 221, "coeff": 2}, {"cat": "Bush", "row": 222, "coeff": 2}, {"cat": "Bush", "row": 223, "coeff": 2}, {"cat": "Bush", "row": 224, "coeff": 2}, {"cat": "Bush", "row": 225, "coeff": 2}, {"cat": "Bush", "row": 226, "coeff": 2}, {"cat": "Bush", "row": 227, "coeff": 2}], "expected_joints": 0}, {"orig_row": 256, "size": "400 mm", "qty_per_joint": 800, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 30, "coeff": 2}, {"cat": "Elbow 45", "row": 44, "coeff": 2}, {"cat": "Tee", "row": 58, "coeff": 3}, {"cat": "Reducer", "row": 146, "coeff": 2}, {"cat": "Reducer", "row": 144, "coeff": 2}, {"cat": "Reducer", "row": 147, "coeff": 2}, {"cat": "Reducer", "row": 145, "coeff": 2}, {"cat": "Reducer", "row": 148, "coeff": 2}, {"cat": "Reducer", "row": 143, "coeff": 2}, {"cat": "Reducer", "row": 142, "coeff": 2}, {"cat": "Reducer", "row": 141, "coeff": 2}, {"cat": "Reducer", "row": 140, "coeff": 2}, {"cat": "Reducer", "row": 139, "coeff": 2}, {"cat": "Reducer", "row": 138, "coeff": 2}, {"cat": "Reducer", "row": 149, "coeff": 2}, {"cat": "Reducer", "row": 137, "coeff": 2}, {"cat": "Bush", "row": 228, "coeff": 2}, {"cat": "Bush", "row": 229, "coeff": 2}, {"cat": "Bush", "row": 230, "coeff": 2}, {"cat": "Bush", "row": 231, "coeff": 2}, {"cat": "Bush", "row": 232, "coeff": 2}, {"cat": "Bush", "row": 233, "coeff": 2}, {"cat": "Bush", "row": 234, "coeff": 2}, {"cat": "Bush", "row": 235, "coeff": 2}, {"cat": "Bush", "row": 236, "coeff": 2}, {"cat": "Bush", "row": 237, "coeff": 2}, {"cat": "Bush", "row": 238, "coeff": 2}, {"cat": "Bush", "row": 239, "coeff": 2}, {"cat": "Bush", "row": 240, "coeff": 2}], "expected_joints": 0}], "solv": [{"orig_row": 259, "size": "32 mm", "dry": 500}, {"orig_row": 260, "size": "50 mm", "dry": 500}, {"orig_row": 261, "size": "63 mm", "dry": 500}, {"orig_row": 262, "size": "75 mm", "dry": 500}, {"orig_row": 263, "size": "90 mm", "dry": 500}, {"orig_row": 264, "size": "110 mm", "dry": 500}, {"orig_row": 265, "size": "125 mm", "dry": 500}, {"orig_row": 266, "size": "140 mm", "dry": 500}, {"orig_row": 267, "size": "160 mm", "dry": 500}, {"orig_row": 268, "size": "200 mm", "dry": 500}, {"orig_row": 269, "size": "250 mm", "dry": 500}, {"orig_row": 270, "size": "315 mm", "dry": 500}, {"orig_row": 271, "size": "355 mm", "dry": 500}, {"orig_row": 272, "size": "400 mm", "dry": 500}]};
+const CATS = ["Pipe", "Elbow 90", "Elbow 45", "Tee", "Reducer", "Bush"];
+const TAB_ICON = {"PriceList": "", "Pipe": "", "Elbow 90": "", "Elbow 45": "", "Tee": "", "Reducer": "", "Bush": "", "Weld": "", "Solv": "", "Summary": ""};
+</script>
+<script>
+(function(){
+"use strict";
+
+let assump = {vat:0.14, inst:0.15, prof:0.25};
+
+function fmt(n){ return (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtInt(n){ return Math.round(Number(n)||0).toLocaleString(); }
+function round2(n){ return Math.round((Number(n)||0)*100)/100; }
+
+/* ---------- lookups ---------- */
+const rowByKey = {}; // key = cat+'_'+orig_row -> row object
+CATS.forEach(cat=>{
+  DATA.cats[cat].forEach(r=>{ rowByKey[cat+'_'+r.orig_row] = r; });
+});
+DATA.weld.forEach(r=>{ rowByKey['Weld_'+r.orig_row] = r; });
+DATA.solv.forEach(r=>{ rowByKey['Solv_'+r.orig_row] = r; });
+
+function qtyOf(cat, row){ return Number(rowByKey[cat+'_'+row].qty)||0; }
+
+function jointCount(w){
+  return w.contrib.reduce((sum,c)=> sum + c.coeff*qtyOf(c.cat, c.row), 0);
+}
+
+function pricing(dry, qty){
+  const vatAmt = dry*assump.vat;
+  const instAmt = dry*assump.inst;
+  const concept = dry+vatAmt+instAmt;
+  const profAmt = concept*assump.prof;
+  const unitRate = concept+profAmt;
+  const total = unitRate*qty;
+  return {vatAmt, instAmt, concept, profAmt, unitRate, total};
+}
+
+/* ---------- DOM builders ---------- */
+function el(tag, attrs, html){
+  const e = document.createElement(tag);
+  if(attrs) for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(html!==undefined) e.innerHTML = html;
+  return e;
+}
+
+function toolbar(text){
+  const d = el('div',{class:'panel-toolbar'});
+  d.appendChild(el('span',{class:'hint'}, text));
+  return d;
+}
+
+const CAT_HEAD = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
+const WS_HEAD = ['Size','Qty / Joint (g)','Qty (kg)','N.o Joints','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
+
+function buildCatTable(cat){
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_'+cat});
+  const thead = el('thead');
+  const trh = el('tr');
+  CAT_HEAD.forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  DATA.cats[cat].forEach(r=>{
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, r.item||''));
+    tr.appendChild(el('td',{class:'left'}, r.size||''));
+    tr.appendChild(el('td',{class:'left'}, r.unit||''));
+    const qtyTd = el('td');
+    const qtyInput = el('input',{type:'number',step:'1',id:'q_'+cat+'_'+r.orig_row,value:r.qty});
+    qtyInput.addEventListener('input', function(){ r.qty = Number(this.value)||0; recalcAll(); });
+    if(cat==='Pipe'){
+      qtyInput.setAttribute('title','Rounds up to the nearest multiple of 6 (standard pipe length) when you finish typing.');
+      qtyInput.addEventListener('blur', function(){
+        const val = Number(this.value)||0;
+        if(val>0){
+          const rounded = Math.ceil(val/6)*6;
+          this.value = rounded;
+          r.qty = rounded;
+          recalcAll();
+        }
+      });
+      qtyInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ this.blur(); } });
+    }
+    qtyTd.appendChild(qtyInput);
+    tr.appendChild(qtyTd);
+    ['dry','vat','inst','concept','prof','rate','total'].forEach(f=>{
+      tr.appendChild(el('td',{}, el('span',{class:'computed'+(f==='total'?' strong':''), id:'c_'+f+'_'+cat+'_'+r.orig_row}, '0.00').outerHTML));
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const tfoot = el('tfoot');
+  const trf = el('tr');
+  trf.appendChild(el('td',{class:'left',colspan:'10'}, 'TOTAL'));
+  trf.appendChild(el('td',{}, el('span',{id:'tot_'+cat}, '0.00').outerHTML));
+  tfoot.appendChild(trf);
+  table.appendChild(tfoot);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function buildWSTable(kind){
+  const rows = kind==='Weld' ? DATA.weld : DATA.solv;
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_'+kind});
+  const thead = el('thead');
+  const trh = el('tr');
+  WS_HEAD.forEach((h,i)=> trh.appendChild(el('th',{class:i<1?'left':''}, h)));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  rows.forEach((r)=>{
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, r.size||''));
+    const qpjTd = el('td');
+    if(kind==='Weld'){
+      const inp = el('input',{type:'number',step:'1',id:'qpj_'+r.orig_row,value:r.qty_per_joint});
+      inp.addEventListener('input', function(){ r.qty_per_joint = Number(this.value)||0; recalcAll(); });
+      qpjTd.appendChild(inp);
+    } else {
+      qpjTd.appendChild(el('span',{class:'computed', id:'qpj_solv_'+r.orig_row}, '0.00'));
+    }
+    tr.appendChild(qpjTd);
+    ['kgqty','joints','dry','vat','inst','concept','prof','rate','total'].forEach(f=>{
+      tr.appendChild(el('td',{}, el('span',{class:'computed'+(f==='total'?' strong':''), id:'c_'+f+'_'+kind+'_'+r.orig_row}, '0').outerHTML));
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const tfoot = el('tfoot');
+  const trf = el('tr');
+  trf.appendChild(el('td',{class:'left',colspan:'10'}, 'TOTAL'));
+  trf.appendChild(el('td',{}, el('span',{id:'tot_'+kind}, '0.00').outerHTML));
+  tfoot.appendChild(trf);
+  table.appendChild(tfoot);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function buildPriceListTable(){
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_PriceList'});
+  const thead = el('thead');
+  const trh = el('tr');
+  ['Item','Size','Unit','Dry Cost (EGP) — editable'].forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+
+  function addSection(title){
+    const tr = el('tr',{class:'section-row'});
+    tr.appendChild(el('td',{colspan:'4'}, title));
+    tbody.appendChild(tr);
+  }
+  function addRow(cat, r, itemLabel, unitLabel){
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, itemLabel));
+    tr.appendChild(el('td',{class:'left'}, r.size||''));
+    tr.appendChild(el('td',{class:'left'}, unitLabel));
+    const dryTd = el('td');
+    const inp = el('input',{type:'number',step:'1',id:'d_'+cat+'_'+r.orig_row,value:r.dry});
+    inp.addEventListener('input', function(){ r.dry = Number(this.value)||0; recalcAll(); });
+    dryTd.appendChild(inp);
+    tr.appendChild(dryTd);
+    tbody.appendChild(tr);
+  }
+
+  CATS.forEach(cat=>{
+    addSection(cat);
+    DATA.cats[cat].forEach(r=> addRow(cat, r, r.item||cat, r.unit||''));
+  });
+  addSection('Welding (rod / fusion material)');
+  DATA.weld.forEach(r=> addRow('Weld', r, 'Welding', 'kg'));
+  addSection('Solvent Cement (مطهر)');
+  DATA.solv.forEach(r=> addRow('Solv', r, 'Solvent', 'kg'));
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function buildSummaryTable(){
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_Summary'});
+  const thead = el('thead');
+  const trh = el('tr');
+  trh.appendChild(el('th',{class:'left'}, 'Category'));
+  trh.appendChild(el('th',{}, 'Total Price (EGP)'));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  [...CATS,'Welding','Solvent'].forEach(name=>{
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, name));
+    const key = name==='Welding'?'Weld':(name==='Solvent'?'Solv':name);
+    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'sum_'+key}, '0.00').outerHTML));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const tfoot = el('tfoot');
+  const trf = el('tr');
+  trf.appendChild(el('td',{class:'left'}, 'GRAND TOTAL'));
+  trf.appendChild(el('td',{}, el('span',{id:'grandTotal'}, '0.00').outerHTML));
+  tfoot.appendChild(trf);
+  table.appendChild(tfoot);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/* ---------- tabs / panels ---------- */
+const TAB_DEFS = [
+  {id:'PriceList', label:'Price List'},
+  ...CATS.map(c=>({id:c, label:c})),
+  {id:'Weld', label:'Welding'},
+  {id:'Solv', label:'Solvent'},
+  {id:'Summary', label:'Summary'},
+];
+
+function initTabsAndPanels(){
+  const nav = document.getElementById('tabsNav');
+  const panels = document.getElementById('panels');
+  TAB_DEFS.forEach((t,i)=>{
+    const icon = TAB_ICON[t.id] || '';
+    const btn = el('button',{class:'tab-btn'+(i===0?' active':''), 'data-tab':t.id}, '<span>'+icon+'</span><span>'+t.label+'</span>');
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      this.classList.add('active');
+      document.getElementById('panel_'+this.dataset.tab).classList.add('active');
+    });
+    nav.appendChild(btn);
+
+    const panel = el('section',{id:'panel_'+t.id, class:'tab-panel'+(i===0?' active':'')});
+    if(t.id==='PriceList'){
+      panel.appendChild(toolbar('Price List'));
+      panel.appendChild(buildPriceListTable());
+    } else if(CATS.includes(t.id)){
+      const hintText = t.id==='Pipe'
+        ? 'Qty = Pipe Length in Meters ( m ).'
+        : 'Qty = No of Fittings';
+      panel.appendChild(toolbar(hintText));
+      panel.appendChild(buildCatTable(t.id));
+    } else if(t.id==='Weld'){
+      panel.appendChild(toolbar('(2 ends/Elbow, 3/Tee, 2/Reducer or Bush).'));
+      panel.appendChild(buildWSTable('Weld'));
+    } else if(t.id==='Solv'){
+      panel.appendChild(toolbar('Same joint count as Welding, at half the material rate per joint.'));
+      panel.appendChild(buildWSTable('Solv'));
+    } else if(t.id==='Summary'){
+      panel.appendChild(buildSummaryTable());
+    }
+    panels.appendChild(panel);
+  });
+}
+
+/* ---------- recalc ---------- */
+function setText(id, text){ const e = document.getElementById(id); if(e) e.textContent = text; }
+
+function recalcAll(){
+  const totals = {};
+
+  CATS.forEach(cat=>{
+    let catTotal = 0;
+    DATA.cats[cat].forEach(r=>{
+      const dry = Number(r.dry)||0;
+      const qty = Number(r.qty)||0;
+      const p = pricing(dry, qty);
+      setText('c_dry_'+cat+'_'+r.orig_row, fmt(dry));
+      setText('c_vat_'+cat+'_'+r.orig_row, fmt(p.vatAmt));
+      setText('c_inst_'+cat+'_'+r.orig_row, fmt(p.instAmt));
+      setText('c_concept_'+cat+'_'+r.orig_row, fmt(p.concept));
+      setText('c_prof_'+cat+'_'+r.orig_row, fmt(p.profAmt));
+      setText('c_rate_'+cat+'_'+r.orig_row, fmt(p.unitRate));
+      setText('c_total_'+cat+'_'+r.orig_row, fmt(p.total));
+      catTotal += p.total;
+    });
+    setText('tot_'+cat, fmt(catTotal));
+    totals[cat] = catTotal;
+  });
+
+  let weldTotal = 0;
+  const weldJoints = {};
+  DATA.weld.forEach(r=>{
+    const joints = jointCount(r);
+    weldJoints[r.orig_row] = joints;
+    const qpj = Number(r.qty_per_joint)||0;
+    const kgqty = (joints*qpj)/1000;
+    const dry = Number(r.dry)||0;
+    const p = pricing(dry, kgqty);
+    setText('c_joints_Weld_'+r.orig_row, fmtInt(joints));
+    setText('c_kgqty_Weld_'+r.orig_row, kgqty.toLocaleString(undefined,{minimumFractionDigits:3,maximumFractionDigits:3}));
+    setText('c_dry_Weld_'+r.orig_row, fmt(dry));
+    setText('c_vat_Weld_'+r.orig_row, fmt(p.vatAmt));
+    setText('c_inst_Weld_'+r.orig_row, fmt(p.instAmt));
+    setText('c_concept_Weld_'+r.orig_row, fmt(p.concept));
+    setText('c_prof_Weld_'+r.orig_row, fmt(p.profAmt));
+    setText('c_rate_Weld_'+r.orig_row, fmt(p.unitRate));
+    setText('c_total_Weld_'+r.orig_row, fmt(p.total));
+    weldTotal += p.total;
+  });
+  setText('tot_Weld', fmt(weldTotal));
+  totals['Weld'] = weldTotal;
+
+  let solvTotal = 0;
+  DATA.solv.forEach((r,idx)=>{
+    const wr = DATA.weld[idx];
+    const joints = weldJoints[wr.orig_row];
+    const qpj = (Number(wr.qty_per_joint)||0)/2;
+    const kgqty = (joints*qpj)/1000;
+    const dry = Number(r.dry)||0;
+    const p = pricing(dry, kgqty);
+    setText('qpj_solv_'+r.orig_row, qpj.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}));
+    setText('c_joints_Solv_'+r.orig_row, fmtInt(joints));
+    setText('c_kgqty_Solv_'+r.orig_row, kgqty.toLocaleString(undefined,{minimumFractionDigits:3,maximumFractionDigits:3}));
+    setText('c_dry_Solv_'+r.orig_row, fmt(dry));
+    setText('c_vat_Solv_'+r.orig_row, fmt(p.vatAmt));
+    setText('c_inst_Solv_'+r.orig_row, fmt(p.instAmt));
+    setText('c_concept_Solv_'+r.orig_row, fmt(p.concept));
+    setText('c_prof_Solv_'+r.orig_row, fmt(p.profAmt));
+    setText('c_rate_Solv_'+r.orig_row, fmt(p.unitRate));
+    setText('c_total_Solv_'+r.orig_row, fmt(p.total));
+    solvTotal += p.total;
+  });
+  setText('tot_Solv', fmt(solvTotal));
+  totals['Solv'] = solvTotal;
+
+  let grand = 0;
+  [...CATS,'Weld','Solv'].forEach(k=>{ grand += totals[k]||0; setText('sum_'+k, fmt(totals[k]||0)); });
+  setText('grandTotal', fmt(grand));
+
+  renderSummaryBar(totals, grand);
+}
+
+
+
+// ---------- المكان االفاضى لو عايز احط صور افتكر ----------  
+function renderSummaryBar(totals, grand){
+  const bar = document.getElementById('summaryBar');
+  bar.innerHTML = '';
+  const cards = [
+    {icon:'           ', label:'Fittings &amp; Pipe Subtotal', value: CATS.reduce((s,c)=>s+(totals[c]||0),0)},
+    {icon:'          ', label:'Welding Subtotal', value: totals['Weld']||0},
+    {icon:'          ', label:'Solvent Subtotal', value: totals['Solv']||0},
+    {icon:'         ', label:'Grand Total', value: grand, grand:true},
+  ];  
+  cards.forEach(c=>{
+    const card = el('div',{class:'summary-card'+(c.grand?' grand':'')});
+    card.appendChild(el('div',{class:'icon'}, c.icon));
+    const txt = el('div');
+    txt.appendChild(el('div',{class:'label'}, c.label));
+    txt.appendChild(el('div',{class:'value'}, fmt(c.value)+' EGP'));
+    card.appendChild(txt);
+    bar.appendChild(card);
+  });
+}
+
+/* ---------- styled Excel export (ExcelJS) ---------- */
+const CLR = {
+  navy:'FF0A1B33', navyLight:'FF1C3A63', amber:'FFDFA355', amberDark:'FFC4863A',
+  white:'FFFFFFFF', rowAlt:'FFF7F9FC', totalFill:'FFFBF3E7', border:'FFDDE2EA', teal:'FF2AA9A0'
+};
+
+function styleTitleRow(ws, rowNum, span){
+  ws.mergeCells(rowNum,1,rowNum,span);
+  const cell = ws.getCell(rowNum,1);
+  cell.font = {bold:true, size:14, color:{argb:CLR.white}};
+  cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.navy}};
+  cell.alignment = {vertical:'middle', horizontal:'center'};
+  ws.getRow(rowNum).height = 28;
+}
+function styleHeaderRow(ws, rowNum, span){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.font = {bold:true, size:10.5, color:{argb:CLR.white}};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.navyLight}};
+    cell.alignment = {vertical:'middle', horizontal:'center', wrapText:true};
+    cell.border = {bottom:{style:'thin', color:{argb:CLR.border}}};
+  }
+  ws.getRow(rowNum).height = 26;
+}
+function styleSectionRow(ws, rowNum, span, text){
+  ws.mergeCells(rowNum,1,rowNum,span);
+  const cell = ws.getCell(rowNum,1);
+  cell.value = text;
+  cell.font = {bold:true, size:10.5, color:{argb:CLR.navy}};
+  cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.amber}};
+  cell.alignment = {vertical:'middle', horizontal:'left', indent:1};
+}
+function styleDataRow(ws, rowNum, span, alt){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.border = {bottom:{style:'hair', color:{argb:CLR.border}}};
+    if(alt) cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.rowAlt}};
+    cell.alignment = {vertical:'middle', horizontal: c<=3?'left':'center'};
+  }
+}
+function styleTotalRow(ws, rowNum, span){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.font = {bold:true, color:{argb:CLR.navy}};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.totalFill}};
+    cell.border = {top:{style:'medium', color:{argb:CLR.amber}}};
+  }
+}
+
+async function exportExcel(){
+  if(typeof ExcelJS === 'undefined'){ alert('Export library did not load. Check your internet connection.'); return; }
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Welding & Solvent Costing Tool';
+  wb.created = new Date();
+
+  /* ---- Price List sheet ---- */
+  const plCols = [{header:'Item',width:18},{header:'Size',width:12},{header:'Unit',width:9},{header:'Dry Cost (EGP)',width:18}];
+  const ws0 = wb.addWorksheet('Price List', {properties:{tabColor:{argb:CLR.amber}}});
+  ws0.columns = plCols.map(c=>({width:c.width}));
+  styleTitleRow(ws0, 1, 4);
+  ws0.getCell(1,1).value = 'MASTER PRICE LIST — Welding & Solvent Costing';
+  let r = 2;
+  ws0.getRow(r).values = plCols.map(c=>c.header);
+  styleHeaderRow(ws0, r, 4);
+  r++;
+  let alt=false;
+  function plSection(title){ styleSectionRow(ws0, r, 4, title); r++; alt=false; }
+  function plRow(item, size, unit, dry){
+    ws0.getRow(r).values = [item, size, unit, dry];
+    ws0.getCell(r,4).numFmt = '#,##0.00';
+    styleDataRow(ws0, r, 4, alt);
+    alt = !alt; r++;
+  }
+  CATS.forEach(cat=>{ plSection(cat); DATA.cats[cat].forEach(row=> plRow(row.item||cat, row.size, row.unit, row.dry)); });
+  plSection('Welding (rod / fusion material)');
+  DATA.weld.forEach(row=> plRow('Welding', row.size, 'kg', row.dry));
+  plSection('Solvent Cement');
+  DATA.solv.forEach(row=> plRow('Solvent', row.size, 'kg', row.dry));
+  ws0.views = [{state:'frozen', ySplit:2}];
+
+  /* ---- Category sheets ---- */
+  const catHeaders = ['Item','Size','Unit','Qty','Dry cost','Vat','Install & Transport','Concept cost','Profit','Unit rate','Total price'];
+  const catWidths = [16,12,8,9,12,10,16,13,10,12,14];
+  CATS.forEach(cat=>{
+    const ws = wb.addWorksheet(cat, {properties:{tabColor:{argb:CLR.navyLight}}});
+    ws.columns = catWidths.map(w=>({width:w}));
+    styleTitleRow(ws, 1, 11);
+    ws.getCell(1,1).value = cat.toUpperCase() + ' — Quantities & Pricing';
+    ws.getRow(2).values = catHeaders;
+    styleHeaderRow(ws, 2, 11);
+    let rr = 3, a=false, total=0;
+    DATA.cats[cat].forEach(row=>{
+      const p = pricing(Number(row.dry)||0, Number(row.qty)||0);
+      ws.getRow(rr).values = [row.item||'', row.size, row.unit, row.qty, row.dry, round2(p.vatAmt), round2(p.instAmt), round2(p.concept), round2(p.profAmt), round2(p.unitRate), round2(p.total)];
+      for(const c of [5,6,7,8,9,10,11]) ws.getCell(rr,c).numFmt = '#,##0.00';
+      styleDataRow(ws, rr, 11, a);
+      a = !a; total += p.total; rr++;
+    });
+    ws.getCell(rr,10).value = 'TOTAL';
+    ws.getCell(rr,11).value = round2(total);
+    ws.getCell(rr,11).numFmt = '#,##0.00';
+    styleTotalRow(ws, rr, 11);
+    ws.views = [{state:'frozen', ySplit:2}];
+  });
+
+  /* ---- Welding / Solvent sheets ---- */
+  const wsHeaders = ['Size','Qty per Joint (g)','Qty (kg)','N.o Joints','Dry cost','Vat','Install & Transport','Concept cost','Profit','Unit rate','Total price'];
+  const wsWidths = [10,15,10,10,10,9,16,13,9,12,14];
+
+  function buildWSSheet(name, rows, isWeld){
+    const ws = wb.addWorksheet(name, {properties:{tabColor:{argb: isWeld?'FFC1453C':CLR.teal}}});
+    ws.columns = wsWidths.map(w=>({width:w}));
+    styleTitleRow(ws, 1, 11);
+    ws.getCell(1,1).value = name.toUpperCase() + (isWeld ? ' (WELDON) — Fusion Joints & Pricing' : ' — Joints & Pricing');
+    ws.getRow(2).values = wsHeaders;
+    styleHeaderRow(ws, 2, 11);
+    let rr = 3, a=false, total=0;
+    rows.forEach((row, idx)=>{
+      let joints, qpj;
+      if(isWeld){ joints = jointCount(row); qpj = Number(row.qty_per_joint)||0; }
+      else { const wr = DATA.weld[idx]; joints = jointCount(wr); qpj = (Number(wr.qty_per_joint)||0)/2; }
+      const kgqty = (joints*qpj)/1000;
+      const p = pricing(Number(row.dry)||0, kgqty);
+      ws.getRow(rr).values = [row.size, round2(qpj), round2(kgqty), joints, row.dry, round2(p.vatAmt), round2(p.instAmt), round2(p.concept), round2(p.profAmt), round2(p.unitRate), round2(p.total)];
+      for(const c of [5,6,7,8,9,10,11]) ws.getCell(rr,c).numFmt = '#,##0.00';
+      styleDataRow(ws, rr, 11, a);
+      a = !a; total += p.total; rr++;
+    });
+    ws.getCell(rr,10).value = 'TOTAL';
+    ws.getCell(rr,11).value = round2(total);
+    ws.getCell(rr,11).numFmt = '#,##0.00';
+    styleTotalRow(ws, rr, 11);
+    ws.views = [{state:'frozen', ySplit:2}];
+  }
+  buildWSSheet('Welding', DATA.weld, true);
+  buildWSSheet('Solvent', DATA.solv, false);
+
+  /* ---- Summary sheet ---- */
+  const wsS = wb.addWorksheet('Summary', {properties:{tabColor:{argb:CLR.amberDark}}});
+  wsS.columns = [{width:24},{width:20}];
+  styleTitleRow(wsS, 1, 2);
+  wsS.getCell(1,1).value = 'SUMMARY — Total Costs by Category';
+  wsS.getRow(2).values = ['Category','Total Price (EGP)'];
+  styleHeaderRow(wsS, 2, 2);
+  let rr = 3, grand = 0, a=false;
+  const catTotals = {};
+  CATS.forEach(cat=>{
+    let t=0; DATA.cats[cat].forEach(row=> t += pricing(Number(row.dry)||0, Number(row.qty)||0).total);
+    catTotals[cat]=t;
+  });
+  let weldTotal=0; DATA.weld.forEach(row=>{ const joints=jointCount(row); const kgqty=(joints*(Number(row.qty_per_joint)||0))/1000; weldTotal += pricing(Number(row.dry)||0, kgqty).total; });
+  let solvTotal=0; DATA.solv.forEach((row,idx)=>{ const wr=DATA.weld[idx]; const joints=jointCount(wr); const qpj=(Number(wr.qty_per_joint)||0)/2; const kgqty=(joints*qpj)/1000; solvTotal += pricing(Number(row.dry)||0, kgqty).total; });
+  [...CATS.map(c=>[c,catTotals[c]]), ['Welding',weldTotal], ['Solvent',solvTotal]].forEach(([name,val])=>{
+    wsS.getRow(rr).values = [name, round2(val)];
+    wsS.getCell(rr,2).numFmt = '#,##0.00';
+    styleDataRow(wsS, rr, 2, a);
+    a = !a; grand += val; rr++;
+  });
+  wsS.getCell(rr,1).value = 'GRAND TOTAL';
+  wsS.getCell(rr,2).value = round2(grand);
+  wsS.getCell(rr,2).numFmt = '#,##0.00';
+  styleTotalRow(wsS, rr, 2);
+  wsS.getCell(rr,1).font = {bold:true, size:12, color:{argb:CLR.navy}};
+  wsS.getCell(rr,2).font = {bold:true, size:12, color:{argb:CLR.navy}};
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const linkEl = document.createElement('a');
+  linkEl.href = url; linkEl.download = 'Welding_Solvent_Costing.xlsx';
+  document.body.appendChild(linkEl); linkEl.click(); document.body.removeChild(linkEl);
+  URL.revokeObjectURL(url);
+}
+
+function printDoc(){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('active'));
+  window.print();
+  setTimeout(()=>{
+    const activeBtn = document.querySelector('.tab-btn.active');
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    if(activeBtn) document.getElementById('panel_'+activeBtn.dataset.tab).classList.add('active');
+  }, 300);
+}
+
+function brandMarkSvg(){
+  return '<svg width="50" height="50" viewBox="0 0 46 46">'+
+    '<circle cx="23" cy="23" r="20" fill="none" stroke="#ffffff" stroke-width="3"/>'+
+    '<circle cx="23" cy="23" r="12" fill="none" stroke="#DFA355" stroke-width="3"/>'+
+    '<circle cx="23" cy="23" r="4" fill="#ffffff"/>'+
+  '</svg>';
+}
+
+function init(){
+  document.getElementById('brandMark').innerHTML = brandMarkSvg();
+  document.getElementById('vatInput').value = round2(assump.vat*100);
+  document.getElementById('instInput').value = round2(assump.inst*100);
+  document.getElementById('profInput').value = round2(assump.prof*100);
+  document.getElementById('vatInput').addEventListener('input', function(){ assump.vat = (Number(this.value)||0)/100; recalcAll(); });
+  document.getElementById('instInput').addEventListener('input', function(){ assump.inst = (Number(this.value)||0)/100; recalcAll(); });
+  document.getElementById('profInput').addEventListener('input', function(){ assump.prof = (Number(this.value)||0)/100; recalcAll(); });
+
+  initTabsAndPanels();
+  recalcAll();
+
+  document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+  document.getElementById('printBtn').addEventListener('click', printDoc);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
