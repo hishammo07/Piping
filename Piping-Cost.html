@@ -120,6 +120,45 @@
     .summary-bar{grid-template-columns:1fr 1fr;}
     .topbar{flex-direction:column;align-items:flex-start;gap:14px;}
   }
+
+/* ================= PRINT ================= */
+@page{ size:landscape; margin:12mm; }
+@media print{
+  html,body{background:#fff;}
+  .app{max-width:100%;padding:0;}
+
+  /* اخفي أي حاجة مالهاش لازمة في الورق */
+  .actions, .tabs, .panel-toolbar, .assump-note{display:none !important;}
+
+  /* اطبع كل تاب كامل ورا التاني، مش بس الفاتح */
+  .tab-panel{display:block !important;page-break-inside:avoid;break-inside:avoid;margin:0 0 22px;animation:none !important;}
+  .tab-panel + .tab-panel{page-break-before:always;break-before:page;}
+
+  /* الهيدر: يرجع لون ثابت بدل الجراديانت المتحرك (الأنيميشن مبيتطبعش أصلاً) */
+  .topbar{
+    background:var(--navy-900) !important;animation:none !important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    box-shadow:none;border-radius:0;padding:14px 4px;margin-bottom:10px;
+  }
+  .assump-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact;border-radius:0;}
+  .summary-card{box-shadow:none;break-inside:avoid;}
+
+  /* الجداول: شيل السكرول عشان الجدول يطبع كامل مش بس الجزء الظاهر */
+  .table-wrap{max-height:none !important;overflow:visible !important;border:1px solid #999;box-shadow:none;border-radius:0;}
+  table{width:100%;min-width:0;}
+  thead{display:table-header-group;} /* هيدر الأعمدة يتكرر في كل صفحة */
+  tr{page-break-inside:avoid;break-inside:avoid;}
+  thead th, tbody tr.section-row td, tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+
+  /* خانات الإدخال: تتطبع كنص عادي مش كصندوق فاضي */
+  input[type=number]{
+    border:none !important;background:transparent !important;box-shadow:none !important;
+    -webkit-appearance:none;appearance:none;padding:0;font-weight:700;color:var(--ink);
+  }
+
+  footer.tool-footer{display:none;}
+}
+  
 </style>
 </head>
 <body>
@@ -689,13 +728,7 @@ async function exportExcel(){
 }
 
 function printDoc(){
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('active'));
   window.print();
-  setTimeout(()=>{
-    const activeBtn = document.querySelector('.tab-btn.active');
-    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-    if(activeBtn) document.getElementById('panel_'+activeBtn.dataset.tab).classList.add('active');
-  }, 300);
 }
 
 function brandMarkSvg(){
