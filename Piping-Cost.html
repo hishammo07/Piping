@@ -613,7 +613,7 @@ async function exportExcel(){
   const ws0 = wb.addWorksheet('Price List', {properties:{tabColor:{argb:CLR.amber}}});
   ws0.columns = plCols.map(c=>({width:c.width}));
   styleTitleRow(ws0, 1, 4);
-  ws0.getCell(1,1).value = 'MASTER PRICE LIST — Welding & Solvent Costing';
+  ws0.getCell(1,1).value = 'MASTER PRICE LIST — PIPING COST';
   let r = 2;
   ws0.getRow(r).values = plCols.map(c=>c.header);
   styleHeaderRow(ws0, r, 4);
