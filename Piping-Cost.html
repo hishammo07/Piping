@@ -605,7 +605,7 @@ function styleTotalRow(ws, rowNum, span){
 async function exportExcel(){
   if(typeof ExcelJS === 'undefined'){ alert('Export library did not load. Check your internet connection.'); return; }
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Welding & Solvent Costing Tool';
+  wb.creator = 'PIPING COST';
   wb.created = new Date();
 
   /* ---- Price List sheet ---- */
