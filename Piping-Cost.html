@@ -622,7 +622,7 @@ function buildLeafPanel(mainId, leaf){
     panel.appendChild(toolbar(hintText));
     panel.appendChild(buildCatTable(leaf.id));
   } else if(VALVE_CATS.includes(leaf.id)){
-    const hintText = leaf.id==='BallValve' ? 'Qty = Installed Length in Meters ( m ).' : 'Qty = No of Units';
+    const hintText = leaf.id==='BallValve' ? 'Qty = No of Units' : 'Qty = No of Units';
     panel.appendChild(toolbar(hintText));
     panel.appendChild(buildCatTable(leaf.id));
   } else if(leaf.id==='Weld'){
