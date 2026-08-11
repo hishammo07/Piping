@@ -636,7 +636,7 @@ function buildCatTable(cat){
       qtyInput.style.background = '#eef1f5';
       qtyInput.style.cursor = 'not-allowed';
       qtyInput.setAttribute('title', cat==='Socket'
-        ? 'Auto-calculated: (Elbow 90 + Elbow 45) × 2 + Tee × 3, for the same diameter.'
+        ? 'Auto-calculated: (Butterfly + Gear + Check valves) × 2 + Flexible Connection × 2, for the same diameter, diameters 90 mm and above only.'
         : 'Auto-calculated: equals the Socket quantity for the same diameter.');
     } else {
       qtyInput.addEventListener('input', function(){ r.qty = Number(this.value)||0; recalcAll(); });
@@ -1150,18 +1150,21 @@ function recalcDiameterSummary(){
   setText('dia_grandCombined', fmt(subTotalA + subTotalB) + ' EGP');
 }
 
+const SOCKET_MIN_DIAM = 90;
+
 function syncSocketFlangeQty(){
   const bySize = {};
-  DIAMS.forEach(d=>{ bySize[d] = {e90:0, e45:0, tee:0}; });
-  (DATA.cats['Elbow 90']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].e90 = Number(r.qty)||0; });
-  (DATA.cats['Elbow 45']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].e45 = Number(r.qty)||0; });
-  (DATA.cats['Tee']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].tee = Number(r.qty)||0; });
+  DIAMS.forEach(d=>{ bySize[d] = {butterfly:0, gear:0, check:0, flex:0}; });
+  (VALVE_DATA.cats['ButterflyValve']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].butterfly = Number(r.qty)||0; });
+  (VALVE_DATA.cats['GearValve']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].gear = Number(r.qty)||0; });
+  (VALVE_DATA.cats['CheckValve']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].check = Number(r.qty)||0; });
+  (VALVE_DATA.cats['FlexibleConnection']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].flex = Number(r.qty)||0; });
 
   const socketQtyBySize = {};
   (VALVE_DATA.cats['Socket']||[]).forEach(r=>{
     const d = normSize(r.size);
-    const b = bySize[d] || {e90:0,e45:0,tee:0};
-    const qty = 2*(b.e90+b.e45) + 3*b.tee;
+    const b = bySize[d] || {butterfly:0,gear:0,check:0,flex:0};
+    const qty = (Number(d) >= SOCKET_MIN_DIAM) ? (2*(b.butterfly+b.gear+b.check) + 2*b.flex) : 0;
     r.qty = qty;
     socketQtyBySize[d] = qty;
     const inp = document.getElementById('q_Socket_'+r.orig_row);
