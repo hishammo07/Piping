@@ -1261,6 +1261,11 @@ function styleTotalRow(ws, rowNum, span){
     cell.border = {top:{style:'medium', color:{argb:CLR.amber}}};
   }
 }
+function colLetter(n){
+  let s='';
+  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
 
 function computeGroupTotals(cfg){
   const rowTotal = {}, catTotals = {};
@@ -1309,6 +1314,29 @@ async function exportExcel(){
   wb.creator = 'Pipe Cost Engine';
   wb.created = new Date();
 
+  /* ---- Assumptions sheet — every pricing formula below reads from here ---- */
+  const wsA = wb.addWorksheet('Assumptions', {properties:{tabColor:{argb:CLR.teal}}});
+  wsA.columns = [{width:30},{width:16},{width:44}];
+  styleTitleRow(wsA, 1, 3);
+  wsA.getCell(1,1).value = 'PRICING ASSUMPTIONS — edit these, everything recalculates';
+  wsA.getRow(2).values = ['Assumption','Value','Notes'];
+  styleHeaderRow(wsA, 2, 3);
+  const assumpRows = [
+    ['VAT %', assump.vat, 'Applied to Dry cost'],
+    ['Installation & Transport %', assump.inst, 'Applied to Dry cost'],
+    ['Profit %', assump.prof, 'Applied to Concept cost'],
+    ['Bolts Flat Fee (EGP)', GROUP_CFG.Valve.solventFlatFee, 'Added per unit for valves at/above the min size below'],
+    ['Bolts Min Size (mm)', GROUP_CFG.Valve.solventFlatMinSize, 'Threshold that triggers the bolts fee'],
+  ];
+  assumpRows.forEach((rowVals, i)=>{
+    const rr = i+3;
+    wsA.getRow(rr).values = rowVals;
+    if(i<3) wsA.getCell(rr,2).numFmt = '0.00%';
+    styleDataRow(wsA, rr, 3, i%2===1);
+  });
+  wsA.views = [{state:'frozen', ySplit:2}];
+  const AS = {vat:'Assumptions!$B$3', inst:'Assumptions!$B$4', prof:'Assumptions!$B$5', boltsFee:'Assumptions!$B$6', boltsMin:'Assumptions!$B$7'};
+
   /* ---- Price List sheets (Pipe + Valves) ---- */
   const plCols = [{header:'Item',width:18},{header:'Size',width:12},{header:'Unit',width:9},{header:'Dry Cost (EGP)',width:18}];
   function buildPriceListSheet(sheetName, title, cfg){
@@ -1348,14 +1376,7 @@ async function exportExcel(){
     const headers = hasBolts ? catHeadersBolts : catHeaders;
     const widths = hasBolts ? catWidthsBolts : catWidths;
     const lastCol = headers.length;
-    const ws = wb.addWorksheet(getCatLabel(cat).slice(0,31), {properties:{tabColor:{argb:CLR.navyLight}}});
-    ws.columns = widths.map(w=>({width:w}));
-    styleTitleRow(ws, 1, lastCol);
-    ws.getCell(1,1).value = getCatLabel(cat).toUpperCase() + ' — Quantities & Pricing';
-    ws.getRow(2).values = headers;
-    styleHeaderRow(ws, 2, lastCol);
-    let rr = 3, a=false, total=0;
-    cfg.data.cats[cat].forEach(row=>{
+    const filledRows = cfg.data.cats[cat].map(row=>{
       const p = pricing(Number(row.dry)||0, Number(row.qty)||0);
       let boltsFee = 0;
       if(hasBolts){
@@ -1366,17 +1387,38 @@ async function exportExcel(){
           p.total = p.unitRate*(Number(row.qty)||0);
         }
       }
-      const rowVals = [row.item||'', row.size, row.unit, row.qty, row.dry, round2(p.vatAmt), round2(p.instAmt), round2(p.concept), round2(p.profAmt), round2(p.unitRate)];
-      if(hasBolts) rowVals.push(round2(boltsFee));
-      rowVals.push(round2(p.total));
-      ws.getRow(rr).values = rowVals;
+      return {row, p, boltsFee};
+    }).filter(x=> Math.abs(x.p.total) >= 0.005);
+    if(!filledRows.length) return;
+    const ws = wb.addWorksheet(getCatLabel(cat).slice(0,31), {properties:{tabColor:{argb:CLR.navyLight}}});
+    ws.columns = widths.map(w=>({width:w}));
+    styleTitleRow(ws, 1, lastCol);
+    ws.getCell(1,1).value = getCatLabel(cat).toUpperCase() + ' — Quantities & Pricing';
+    ws.getRow(2).values = headers;
+    styleHeaderRow(ws, 2, lastCol);
+    let rr = 3, a=false, total=0;
+    filledRows.forEach(({row,p,boltsFee})=>{
+      ws.getRow(rr).values = [row.item||'', row.size, row.unit, row.qty, row.dry];
+      ws.getCell(rr,6).value = {formula:`E${rr}*${AS.vat}`};
+      ws.getCell(rr,7).value = {formula:`E${rr}*${AS.inst}`};
+      ws.getCell(rr,8).value = {formula:`E${rr}+F${rr}+G${rr}`};
+      ws.getCell(rr,9).value = {formula:`H${rr}*${AS.prof}`};
+      if(hasBolts){
+        const boltsCond = `VALUE(TRIM(SUBSTITUTE(B${rr},"mm","")))>=${AS.boltsMin}`;
+        ws.getCell(rr,10).value = {formula:`H${rr}+I${rr}+IF(${boltsCond},${AS.boltsFee},0)`};
+        ws.getCell(rr,11).value = {formula:`IF(${boltsCond},${AS.boltsFee}*D${rr},0)`};
+        ws.getCell(rr,12).value = {formula:`J${rr}*D${rr}`};
+      } else {
+        ws.getCell(rr,10).value = {formula:`H${rr}+I${rr}`};
+        ws.getCell(rr,11).value = {formula:`J${rr}*D${rr}`};
+      }
       const numFmtCols = hasBolts ? [5,6,7,8,9,10,11,12] : [5,6,7,8,9,10,11];
       for(const c of numFmtCols) ws.getCell(rr,c).numFmt = '#,##0.00';
       styleDataRow(ws, rr, lastCol, a);
       a = !a; total += p.total; rr++;
     });
     ws.getCell(rr,lastCol-1).value = 'TOTAL';
-    ws.getCell(rr,lastCol).value = round2(total);
+    ws.getCell(rr,lastCol).value = {formula:`SUM(${colLetter(lastCol)}3:${colLetter(lastCol)}${rr-1})`};
     ws.getCell(rr,lastCol).numFmt = '#,##0.00';
     styleTotalRow(ws, rr, lastCol);
     ws.views = [{state:'frozen', ySplit:2}];
@@ -1389,6 +1431,15 @@ async function exportExcel(){
   const wsWidths = [10,15,10,10,10,9,16,13,9,12,14];
 
   function buildWSSheet(name, rows, weldRowsForPairing, isWeld){
+    const computed = rows.map((row, idx)=>{
+      let joints, qpj;
+      if(isWeld){ joints = jointCount(row); qpj = Number(row.qty_per_joint)||0; }
+      else { const wr = weldRowsForPairing[idx]; joints = jointCount(wr); qpj = (Number(wr.qty_per_joint)||0)/2; }
+      const kgqty = (joints*qpj)/1000;
+      const p = pricing(Number(row.dry)||0, kgqty);
+      return {row, joints, qpj, kgqty, p};
+    }).filter(x=> Math.abs(x.p.total) >= 0.005);
+    if(!computed.length) return;
     const ws = wb.addWorksheet(name, {properties:{tabColor:{argb: isWeld?'FFC1453C':CLR.teal}}});
     ws.columns = wsWidths.map(w=>({width:w}));
     styleTitleRow(ws, 1, 11);
@@ -1396,19 +1447,20 @@ async function exportExcel(){
     ws.getRow(2).values = wsHeaders;
     styleHeaderRow(ws, 2, 11);
     let rr = 3, a=false, total=0;
-    rows.forEach((row, idx)=>{
-      let joints, qpj;
-      if(isWeld){ joints = jointCount(row); qpj = Number(row.qty_per_joint)||0; }
-      else { const wr = weldRowsForPairing[idx]; joints = jointCount(wr); qpj = (Number(wr.qty_per_joint)||0)/2; }
-      const kgqty = (joints*qpj)/1000;
-      const p = pricing(Number(row.dry)||0, kgqty);
-      ws.getRow(rr).values = [row.size, round2(qpj), round2(kgqty), joints, row.dry, round2(p.vatAmt), round2(p.instAmt), round2(p.concept), round2(p.profAmt), round2(p.unitRate), round2(p.total)];
+    computed.forEach(({row,joints,qpj,kgqty,p})=>{
+      ws.getRow(rr).values = [row.size, round2(qpj), round2(kgqty), joints, row.dry];
+      ws.getCell(rr,6).value = {formula:`E${rr}*${AS.vat}`};
+      ws.getCell(rr,7).value = {formula:`E${rr}*${AS.inst}`};
+      ws.getCell(rr,8).value = {formula:`E${rr}+F${rr}+G${rr}`};
+      ws.getCell(rr,9).value = {formula:`H${rr}*${AS.prof}`};
+      ws.getCell(rr,10).value = {formula:`H${rr}+I${rr}`};
+      ws.getCell(rr,11).value = {formula:`J${rr}*C${rr}`};
       for(const c of [5,6,7,8,9,10,11]) ws.getCell(rr,c).numFmt = '#,##0.00';
       styleDataRow(ws, rr, 11, a);
       a = !a; total += p.total; rr++;
     });
     ws.getCell(rr,10).value = 'TOTAL';
-    ws.getCell(rr,11).value = round2(total);
+    ws.getCell(rr,11).value = {formula:`SUM(K3:K${rr-1})`};
     ws.getCell(rr,11).numFmt = '#,##0.00';
     styleTotalRow(ws, rr, 11);
     ws.views = [{state:'frozen', ySplit:2}];
@@ -1435,14 +1487,14 @@ async function exportExcel(){
     styleDataRow(wsS, rr, 2, a);
     a = !a; grand += val; rr++;
   }
-  summarySection('PIPE & FITTINGS');
-  CATS.forEach(cat=> summaryRow(getCatLabel(cat), pipeCalc.catTotals[cat]));
-  summaryRow('Welding', pipeCalc.weldTotal);
-  summaryRow('Solvent', pipeCalc.solvTotal);
-  summarySection('VALVES & ACCESSORIES');
-  VALVE_CATS.forEach(cat=> summaryRow(getCatLabel(cat), valveCalc.catTotals[cat]));
-  summaryRow('Valves Welding', valveCalc.weldTotal);
-  summaryRow('Valves Solvent', valveCalc.solvTotal);
+  const pipeRows = CATS.map(cat=>[getCatLabel(cat), pipeCalc.catTotals[cat]])
+    .concat([['Welding', pipeCalc.weldTotal],['Solvent', pipeCalc.solvTotal]])
+    .filter(([,v])=> Math.abs(v)>=0.005);
+  if(pipeRows.length){ summarySection('PIPE & FITTINGS'); pipeRows.forEach(([n,v])=> summaryRow(n,v)); }
+  const valveRows = VALVE_CATS.map(cat=>[getCatLabel(cat), valveCalc.catTotals[cat]])
+    .concat([['Valves Welding', valveCalc.weldTotal],['Valves Solvent', valveCalc.solvTotal]])
+    .filter(([,v])=> Math.abs(v)>=0.005);
+  if(valveRows.length){ summarySection('VALVES & ACCESSORIES'); valveRows.forEach(([n,v])=> summaryRow(n,v)); }
   wsS.getCell(rr,1).value = 'GRAND TOTAL';
   wsS.getCell(rr,2).value = round2(grand);
   wsS.getCell(rr,2).numFmt = '#,##0.00';
@@ -1492,6 +1544,7 @@ async function exportExcel(){
   diamsSmall.forEach(d=>{
     const len = diaLen[d]||0, pipeCost = diaPipeCost[d]||0;
     const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0);
+    if(Math.abs(len) < 0.005 && Math.abs(combined) < 0.005) return;
     const cpmPipe = len>0 ? pipeCost/len : null, cpmAll = len>0 ? combined/len : null;
     wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(combined), cpmPipe!==null?round2(cpmPipe):'—', cpmAll!==null?round2(cpmAll):'—'];
     for(const c of [2,3,4]) wsD.getCell(rrD,c).numFmt = '#,##0.00';
@@ -1519,6 +1572,7 @@ async function exportExcel(){
     const e90 = diaElbow90[d]||0, e45 = diaElbow45[d]||0, tee = diaTee[d]||0;
     const other = (diaOtherPipeSide[d]||0) + (diaValves[d]||0);
     const total = pipeCost + e90 + e45 + tee + other;
+    if(Math.abs(len) < 0.005 && Math.abs(total) < 0.005) return;
     wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(e90), round2(e45), round2(tee), round2(other), round2(total)];
     for(const c of [2,3,4,5,6,7,8]) wsD.getCell(rrD,c).numFmt = '#,##0.00';
     styleDataRow(wsD, rrD, 8, bRow);
