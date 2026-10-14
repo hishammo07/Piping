@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#073A47">
+<title>Pipe &amp; Valve Cost Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root{
+    --navy-950:#0B1220; --navy-900:#101B30; --navy-800:#1B2C48; --navy-700:#28406A; --navy-line:#33507C;
+    --brass-300:#F0C48A; --brass-500:#D69A4E; --brass-600:#B67B33; --steel-500:#5B95A0; --steel-300:#8FC2CB;
+    --amber-500:#D69A4E; --amber-600:#B67B33; --teal-500:#5B95A0;
+    --paper:#F7F2E9; --panel:#FFFFFF; --ink:#1B2434; --ink-soft:#63707E;
+    --line:#E7E0D2; --line-soft:#F1ECE1;
+    --mono: 'IBM Plex Mono', ui-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --display: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+    --r-sm:10px; --r-md:16px; --r-lg:22px; --r-pill:999px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;color:var(--ink);font-family:var(--sans);
+    background:
+      radial-gradient(900px 500px at 8% -8%, rgba(214,154,78,.10), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, rgba(91,149,160,.12), transparent 55%),
+      repeating-linear-gradient(0deg, rgba(27,44,72,.025) 0 1px, transparent 1px 30px),
+      repeating-linear-gradient(90deg, rgba(27,44,72,.025) 0 1px, transparent 1px 30px),
+      var(--paper);
+  }
+  .app{max-width:1500px;margin:0 auto;padding:24px 20px 60px;}
+
+  /* ---------- Header: soft instrument panel ---------- */
+  .topbar{
+    display:flex;flex-direction:column;gap:0;
+    border-radius:var(--r-lg);color:#fff;
+    background:
+      radial-gradient(600px 260px at 12% 0%, rgba(214,154,78,.16), transparent 60%),
+      radial-gradient(600px 300px at 100% 100%, rgba(91,149,160,.18), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 40%),
+      var(--navy-950);
+    box-shadow:0 14px 34px rgba(11,18,32,.28);
+    position:relative;overflow:hidden;
+    border:1px solid var(--navy-line);
+  }
+  .topbar::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:
+      repeating-linear-gradient(0deg, rgba(240,196,138,.05) 0 1px, transparent 1px 24px),
+      repeating-linear-gradient(90deg, rgba(240,196,138,.05) 0 1px, transparent 1px 24px);
+    -webkit-mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.2));
+            mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.2));
+  }
+  .topbar-main{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:22px 28px 20px;position:relative;z-index:1;}
+  .corner-tick{display:none;}
+  .brand{display:flex;align-items:center;gap:16px;position:relative;z-index:1;}
+  .brand-mark{width:46px;height:46px;flex:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.25));}
+  .brand-text .eyebrow{display:block;font-family:var(--display);font-size:10.5px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--brass-300);margin-bottom:3px;}
+  .brand-text h1{margin:0;font-family:var(--display);font-size:24px;letter-spacing:2px;color:#fff;font-weight:700;text-transform:uppercase;}
+  .brand-text .subtitle{font-size:12px;color:rgba(255,255,255,.68);letter-spacing:.2px;}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:relative;z-index:1;}
+
+  .btn{
+    border:1px solid var(--navy-line);background:rgba(255,255,255,.05);
+    color:#fff;padding:10px 18px;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    font-family:var(--display);letter-spacing:.6px;text-transform:uppercase;
+  }
+  .btn svg{width:15px;height:15px;flex:none;}
+  .btn:hover{background:rgba(255,255,255,.12);transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.2);}
+  .btn:active{transform:translateY(0);}
+  .btn.primary{background:linear-gradient(135deg, var(--brass-300), var(--brass-500));color:var(--navy-950);border-color:var(--brass-500);}
+  .btn.primary:hover{background:linear-gradient(135deg, var(--brass-300), var(--brass-300));box-shadow:0 8px 18px rgba(214,154,78,.35);}
+
+  /* ---------- signature: animated pipeline flow-line ---------- */
+  .flow-rail{position:relative;height:20px;z-index:1;padding:0 28px;overflow:hidden;}
+  .flow-rail .rail-line{position:absolute;left:28px;right:28px;top:9px;height:2px;background:var(--navy-line);}
+  .flow-rail .rail-node{position:absolute;top:5px;width:10px;height:10px;border-radius:50%;background:var(--navy-950);border:2px solid var(--brass-500);transform:translateX(-50%);}
+  .flow-rail .rail-pulse{
+    position:absolute;top:8px;height:4px;width:160px;border-radius:2px;
+    background:linear-gradient(90deg, rgba(227,181,122,0), var(--brass-300) 45%, var(--brass-500) 55%, rgba(227,181,122,0));
+    animation:flowPulse 5s linear infinite;
+  }
+  @keyframes flowPulse{
+    0%{left:-160px;}
+    100%{left:100%;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .flow-rail .rail-pulse{animation:none;display:none;}
+  }
+
+  /* ---------- Summary cards ---------- */
+  .summary-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 20px;}
+  .summary-card{
+    background:linear-gradient(180deg, #FFFFFF, #FFFDF8);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px 15px;
+    display:flex;align-items:center;gap:12px;position:relative;overflow:hidden;
+    box-shadow:0 2px 10px rgba(27,44,72,.05);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .summary-card::before{content:"";position:absolute;top:0;left:14px;right:14px;height:4px;border-radius:0 0 var(--r-pill) var(--r-pill);background:linear-gradient(90deg, var(--brass-300), var(--brass-500));}
+  .summary-card:hover{transform:translateY(-3px);box-shadow:0 12px 24px rgba(27,44,72,.12);}
+  .summary-card.grand{background:linear-gradient(160deg, var(--navy-900), var(--navy-950));border-color:var(--navy-line);}
+  .summary-card.grand::before{background:linear-gradient(90deg, var(--brass-300), var(--steel-300));}
+  .summary-card.grand .label{color:var(--brass-300);}
+  .summary-card.grand .value{color:#fff;}
+  .summary-card .label{font-family:var(--display);font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);font-weight:600;margin-bottom:5px;}
+  .summary-card .value{font-size:19px;font-weight:700;color:var(--navy-900);font-family:var(--mono);font-variant-numeric:tabular-nums;}
+
+  /* ---------- Assumptions bar ---------- */
+  .assump-bar{
+    display:flex;gap:24px;padding:16px 22px;border-radius:var(--r-md);margin-bottom:20px;flex-wrap:wrap;align-items:center;
+    background:linear-gradient(135deg, var(--navy-900), var(--navy-950));
+    box-shadow:0 8px 20px rgba(11,18,32,.16);
+    border:1px solid var(--navy-line);
+  }
+  .assump-field label{display:block;font-family:var(--display);font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--brass-300);margin-bottom:5px;font-weight:600;}
+  .assump-field input{width:90px;background:rgba(255,255,255,.07);border:1px solid var(--navy-line);color:#fff;padding:8px 12px;border-radius:var(--r-sm);font-size:13px;font-family:var(--mono);}
+  .assump-field input:focus{outline:2px solid var(--brass-300);outline-offset:1px;}
+  .assump-note{color:#9AABBB;font-size:12px;margin-left:auto;}
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex;gap:5px;margin-bottom:18px;flex-wrap:wrap;
+    background:var(--panel);padding:7px;border-radius:var(--r-md);border:1px solid var(--line);
+    box-shadow:0 2px 8px rgba(27,44,72,.05);
+  }
+  .tab-btn{
+    border:none;background:transparent;padding:9px 16px;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;letter-spacing:.4px;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:6px;transition:all .15s ease;
+    font-family:var(--display);text-transform:uppercase;
+  }
+  .tab-btn:hover{background:var(--line-soft);color:var(--navy-900);}
+  .tab-btn.active{
+    background:linear-gradient(135deg, var(--navy-800), var(--navy-950));
+    color:#fff;box-shadow:0 4px 12px rgba(16,27,48,.25);
+  }
+  .tab-btn.main{font-size:13px;padding:11px 22px;}
+  .tabs.subtabs{background:transparent;border:none;box-shadow:none;padding:0 0 4px;margin-bottom:14px;gap:8px;}
+  .tab-btn.sub{background:var(--panel);border:1px solid var(--line);color:var(--navy-900);font-size:11.5px;padding:7px 15px;}
+  .tab-btn.sub:hover{background:var(--line-soft);}
+  .tab-btn.sub.active{background:linear-gradient(135deg, var(--brass-300), var(--brass-500));color:var(--navy-950);border-color:var(--brass-500);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;animation:fadeIn .28s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  @media (prefers-reduced-motion: reduce){
+    .tab-panel.active{animation:none;}
+  }
+
+  .panel-toolbar{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .hint{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;}
+  .print-heading{display:none;}
+
+  /* ---------- Table ---------- */
+  .table-wrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);overflow:auto;box-shadow:0 4px 16px rgba(27,44,72,.06);max-height:70vh;}
+  table{border-collapse:collapse;width:100%;min-width:760px;}
+  thead th{background:linear-gradient(135deg, var(--navy-800), var(--navy-950));color:#fff;font-family:var(--display);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;font-weight:500;padding:11px 6px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:2;}
+  thead th.left{text-align:left;padding-left:12px;}
+  tbody td{padding:7px 6px;border-bottom:1px solid var(--line-soft);text-align:center;font-size:13px;}
+  tbody tr:nth-child(even){background:#FBF8F1;}
+  tbody tr:hover{background:#F4EFE3;}
+  tbody tr.section-row td{
+    background:linear-gradient(90deg, var(--brass-500), var(--brass-300));
+    color:var(--navy-950);font-family:var(--display);font-weight:600;text-align:left;padding-left:12px;
+    text-transform:uppercase;font-size:11px;letter-spacing:.8px;border-bottom:1px solid var(--brass-600);
+  }
+  td.left{text-align:left;padding-left:10px;font-weight:700;color:var(--navy-900);white-space:nowrap;}
+  input[type=number]{width:100%;min-width:66px;border:1px solid var(--brass-500);border-radius:var(--r-sm);padding:6px 8px;font-family:var(--mono);font-size:12.5px;text-align:center;color:var(--ink);background:#FFFDF8;transition:box-shadow .12s ease, border-color .12s ease;}
+  input[type=number]:focus{outline:none;border-color:var(--brass-300);box-shadow:0 0 0 3px rgba(214,154,78,.28);}
+  .computed{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;}
+  .computed.strong{font-weight:700;color:var(--navy-900);}
+  tfoot td{background:var(--line-soft);font-weight:700;color:var(--navy-900);padding:10px 6px;text-align:center;font-family:var(--mono);border-top:2px solid var(--brass-500);}
+  tfoot td.left{text-align:right;padding-right:14px;font-family:var(--display);text-transform:uppercase;letter-spacing:.6px;font-size:11.5px;}
+
+  footer.tool-footer{margin-top:26px;font-size:11px;color:var(--ink-soft);text-align:center;font-family:var(--display);letter-spacing:.6px;text-transform:uppercase;}
+
+  /* ---------- Diameter Summary: section titles + combined grand total ---------- */
+  .dia-section-title{
+    font-family:var(--display);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--navy-950);background:linear-gradient(90deg, var(--brass-300), var(--brass-500));
+    padding:9px 14px;border-radius:var(--r-sm) var(--r-sm) 0 0;margin:18px 0 0;
+  }
+  .dia-section-title + .table-wrap{border-top-left-radius:0;border-top-right-radius:0;}
+  .dia-grand-total{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:16px;
+    background:linear-gradient(160deg, var(--navy-900), var(--navy-950));border:1px solid var(--navy-line);
+    border-radius:var(--r-md);padding:14px 18px;
+  }
+  .dia-grand-label{font-family:var(--display);font-size:12.5px;text-transform:uppercase;letter-spacing:.8px;color:#EADFC8;}
+  .dia-grand-value{font-family:var(--mono);font-size:20px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;}
+
+  @media (max-width:720px){
+    .summary-bar{grid-template-columns:1fr 1fr;}
+    .topbar-main{flex-direction:column;align-items:flex-start;gap:14px;}
+    .flow-rail{display:none;}
+  }
+
+/* ================= PRINT ================= */
+@page{ size:landscape; margin:12mm; }
+@media print{
+  html,body{background:#fff;}
+  .app{max-width:100%;padding:0;}
+
+  .actions, .tabs, .panel-toolbar, .assump-note, .corner-tick, .flow-rail{display:none !important;}
+
+  .tab-panel{display:block !important;break-inside:avoid-page;margin:0 0 12px;animation:none !important;}
+  .print-heading{display:block !important;font-family:var(--display);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--navy-900);margin:0 0 4px;padding-bottom:3px;border-bottom:2px solid var(--brass-500);}
+
+  .topbar{
+    background:var(--navy-950) !important;animation:none !important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    box-shadow:none;border-radius:0;border:none;margin-bottom:10px;
+  }
+  .topbar::before{display:none;}
+  .topbar-main{padding:14px 4px;}
+  .assump-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact;border-radius:0;}
+  .summary-card{box-shadow:none;break-inside:avoid;}
+  .summary-card.grand{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+
+  .table-wrap{max-height:none !important;overflow:visible !important;border:1px solid #999;box-shadow:none;border-radius:0;}
+  table{width:100%;min-width:0;}
+  thead th, tbody td{padding:4px 5px;font-size:10.5px;}
+
+  thead{display:table-header-group;}
+  tr{page-break-inside:avoid;break-inside:avoid;}
+  thead th, tbody tr.section-row td, tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+
+  input[type=number]{
+    border:none !important;background:transparent !important;box-shadow:none !important;
+    -webkit-appearance:none;appearance:none;padding:0;font-weight:700;color:var(--ink);
+  }
+
+  footer.tool-footer{display:none;}
+
+  #panel_PriceList, #panel_VPriceList{display:none !important;}
+
+  tr.print-hide-row{display:none !important;}
+  .tab-panel.print-hide-panel{display:none !important;}
+
+  /* keep only Item/Size/Unit/Qty + Unit Rate + Total Price; hide the intermediate cost columns */
+  table.cat-table thead th:nth-child(5), table.cat-table tbody td:nth-child(5),
+  table.cat-table thead th:nth-child(6), table.cat-table tbody td:nth-child(6),
+  table.cat-table thead th:nth-child(7), table.cat-table tbody td:nth-child(7),
+  table.cat-table thead th:nth-child(8), table.cat-table tbody td:nth-child(8),
+  table.cat-table thead th:nth-child(9), table.cat-table tbody td:nth-child(9){
+    display:none !important;
+  }
+
+  table.ws-table thead th:nth-child(2), table.ws-table tbody td:nth-child(2),
+  table.ws-table thead th:nth-child(3), table.ws-table tbody td:nth-child(3),
+  table.ws-table thead th:nth-child(5), table.ws-table tbody td:nth-child(5),
+  table.ws-table thead th:nth-child(6), table.ws-table tbody td:nth-child(6),
+  table.ws-table thead th:nth-child(7), table.ws-table tbody td:nth-child(7),
+  table.ws-table thead th:nth-child(8), table.ws-table tbody td:nth-child(8),
+  table.ws-table thead th:nth-child(9), table.ws-table tbody td:nth-child(9),
+  table.ws-table thead th:nth-child(10), table.ws-table tbody td:nth-child(10){
+    display:none !important;
+  }
+
+  .dia-section-title{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:avoid;break-inside:avoid;}
+  .dia-grand-total{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-inside:avoid;}
+  #tbl_DiaSummaryA, #tbl_DiaSummaryB{min-width:0;}
+  #tbl_DiaSummaryA thead th, #tbl_DiaSummaryA tbody td,
+  #tbl_DiaSummaryB thead th, #tbl_DiaSummaryB tbody td{font-size:9.5px;padding:4px 4px;}
+}
+  
+</style>
+<style id="ces-theme">
+/* =====================================================================
+   CES POOL SUITE THEME - same palette, backgrounds, header and motion
+   as Piping-Calculator (screen only; print keeps the clean white report)
+   ===================================================================== */
+@keyframes cesFlow{0%,100%{background-position:0 0,0% 0}50%{background-position:0 0,100% 0}}
+@keyframes cesBob{0%,100%{transform:translateX(-1.4px)}50%{transform:translateX(1.4px)}}
+@keyframes cesDr1{0%,100%{transform:translate(0,0)}50%{transform:translate(70px,50px)}}
+@keyframes cesDr2{0%,100%{transform:translate(0,0)}50%{transform:translate(-80px,40px)}}
+@keyframes cesSl{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes cesRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ---------- hero header (layout shared; colours in screen block) ---------- */
+header.hero{
+  position:relative;overflow:hidden;color:#EAF7F7;
+  padding:28px 26px 24px;margin-bottom:24px;
+  display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;
+}
+header.hero::before{content:"";position:absolute;inset:0;pointer-events:none;}
+header.hero::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:repeating-linear-gradient(115deg,rgba(255,255,255,.045) 0 1px,transparent 1px 34px);}
+.hero-text,.hero .actions{position:relative;z-index:1;}
+.hero-text h1{font-size:clamp(21px,3.6vw,30px);margin:0 0 8px;font-weight:800;letter-spacing:-.4px;color:#fff;}
+.hero-text p{margin:0;color:#BFDEDF;font-size:14.5px;max-width:68ch;}
+.hero-brand{display:flex;align-items:center;gap:10px;margin-bottom:14px;user-select:none;}
+.ces-logo{width:38px;height:38px;flex:0 0 38px;}
+.ces-logo svg{width:100%;height:100%;display:block;overflow:visible;}
+.hero-brand b{display:block;font-size:15px;letter-spacing:.2px;line-height:1.1;color:#fff;}
+.hero-brand small{display:block;font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;margin-top:2px;}
+header.hero .actions{justify-content:flex-end;max-width:620px;}
+
+.ces-bg{display:none;}
+
+@media screen{
+  :root{
+    color-scheme:dark;
+    --abyss:#052630; --deep:#073A47; --teal:#0E6B78; --lagoon:#1A9AA0; --aqua:#4DE0CF;
+    --foam:#D5F6F0; --mute:#8DB8BC; --sand:#EBCB92;
+    --paper:#052630; --panel:rgba(255,255,255,.055);
+    --ink:#E6F6F5; --ink-soft:#8DB8BC;
+    --line:rgba(255,255,255,.13); --line-soft:rgba(255,255,255,.07);
+    --brass-300:#5BEBDA; --brass-500:#22AEB0; --brass-600:#1A9AA0;
+    --amber-500:#22AEB0; --amber-600:#1A9AA0; --steel-300:#8FE3DE; --steel-500:#22AEB0; --teal-500:#22AEB0;
+    --sans:Inter,'Archivo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  html{background:#052630;}
+  html,body{color:var(--ink);}
+  body{
+    background:linear-gradient(180deg,#073341 0%,#052630 55%,#041C25 100%);
+    background-attachment:fixed;background-repeat:no-repeat;font-family:var(--sans);line-height:1.5;min-height:100vh;
+  }
+  ::selection{background:rgba(77,224,207,.35);color:#fff;}
+  *{scrollbar-color:rgba(77,224,207,.38) rgba(255,255,255,.04);}
+  .app{position:relative;z-index:1;max-width:1560px;padding:22px 18px 70px;}
+
+  /* animated background: drifting orbs + sliding waves */
+  .ces-bg{display:block;position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
+  .ces-orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5;}
+  .ces-o1{width:480px;height:480px;left:-120px;top:40px;background:#17B3A8;animation:cesDr1 26s ease-in-out infinite;}
+  .ces-o2{width:520px;height:520px;right:-160px;top:200px;background:#2A78C8;opacity:.38;animation:cesDr2 32s ease-in-out infinite;}
+  .ces-o3{width:380px;height:380px;left:35%;bottom:-140px;background:#0F8E86;opacity:.4;animation:cesDr1 38s ease-in-out infinite reverse;}
+  .ces-waves{position:absolute;left:0;right:0;bottom:0;height:120px;opacity:.55;}
+  .ces-waves svg{position:absolute;bottom:0;left:0;width:200%;height:100%;}
+  .ces-waves .a{animation:cesSl 22s linear infinite;}
+  .ces-waves .b{animation:cesSl 34s linear infinite reverse;opacity:.6;}
+
+  /* header (flowing gradient like the suite top bar) */
+  header.hero{
+    background:radial-gradient(500px 90px at 85% -20%,rgba(77,224,207,.28),transparent 70%),
+               linear-gradient(115deg,#052F3B 0%,#0A5260 45%,#127A85 75%,#0A5260 100%);
+    background-size:100% 100%,250% 100%;
+    animation:cesFlow 30s ease-in-out infinite;
+    border:1px solid rgba(255,255,255,.1);border-radius:20px;
+    box-shadow:0 22px 50px -26px rgba(0,0,0,.75);
+  }
+  header.hero::before{background:radial-gradient(420px 220px at 92% -15%,rgba(77,224,207,.12),transparent 70%);}
+  .ces-logo{filter:drop-shadow(0 4px 10px rgba(0,0,0,.35));}
+  .ces-logo .w1{animation:cesBob 4.5s ease-in-out infinite;}
+  .ces-logo .w2{animation:cesBob 4.5s ease-in-out -2.2s infinite;}
+  .hero-brand small{color:var(--aqua);}
+  .hero-text h1{background:linear-gradient(100deg,#fff 20%,#A6F0E6 90%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .hero-text p{color:#9FD3D6;}
+
+  /* buttons */
+  .btn{
+    border:1px solid rgba(255,255,255,.18);background:rgba(3,25,32,.38);color:#EAF7F7;
+    border-radius:12px;padding:9px 15px;font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  .btn:hover{background:rgba(77,224,207,.14);border-color:rgba(77,224,207,.5);box-shadow:0 8px 18px -10px rgba(0,0,0,.6);}
+  .btn.primary{background:linear-gradient(135deg,#5BEBDA,#22AEB0);color:#032B33;border:1px solid rgba(77,224,207,.6);box-shadow:0 10px 24px -10px rgba(77,224,207,.6);}
+  .btn.primary:hover{background:linear-gradient(135deg,#7CF3E5,#2FC4C6);box-shadow:0 14px 30px -10px rgba(77,224,207,.75);}
+
+  /* assumptions bar = glass card */
+  .assump-bar{
+    position:relative;overflow:hidden;
+    background:linear-gradient(160deg,rgba(255,255,255,.085),rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.11);border-radius:18px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 10px 26px -16px rgba(0,0,0,.65);
+  }
+  .assump-bar::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;pointer-events:none;background:linear-gradient(90deg,#2FC4B2,transparent 80%);}
+  .assump-field label{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.2px;text-transform:none;color:var(--mute);}
+  .assump-field input,input[type=number]{
+    color:var(--ink);background:rgba(3,25,32,.55);border:1px solid rgba(255,255,255,.14);border-radius:10px;
+  }
+  .assump-field input:focus,input[type=number]:focus{outline:none;border-color:var(--aqua);box-shadow:0 0 0 3px rgba(77,224,207,.18);}
+  input[type=number]{font-family:var(--mono);background:rgba(3,25,32,.55);}
+  input[readonly]{background:rgba(255,255,255,.06) !important;color:var(--mute);border-style:dashed;}
+  input::placeholder{color:#6F9AA0;}
+  .assump-note{color:var(--mute);}
+
+  /* summary cards */
+  .summary-card{
+    background:linear-gradient(160deg,rgba(255,255,255,.085),rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.11);border-radius:18px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 10px 26px -16px rgba(0,0,0,.65);
+    transition:transform .25s,border-color .25s,box-shadow .25s;
+  }
+  .summary-card::before{left:0;right:0;height:2px;border-radius:0;background:linear-gradient(90deg,#2FC4B2,transparent 80%);}
+  .summary-card:hover{transform:translateY(-3px);border-color:rgba(77,224,207,.5);box-shadow:0 22px 44px -18px rgba(0,0,0,.65),0 0 0 1px rgba(77,224,207,.22);}
+  .summary-card .label{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.2px;text-transform:none;color:var(--mute);}
+  .summary-card .value{color:var(--ink);font-weight:600;}
+  .summary-card.grand{background:linear-gradient(135deg,#0F6F7B,#0A4A57);border-color:rgba(77,224,207,.4);}
+  .summary-card.grand::before{background:linear-gradient(90deg,#5BEBDA,transparent 85%);}
+  .summary-card.grand .label{color:#B9EDE8;}
+  .summary-card.grand .value{color:#fff;}
+
+  /* tabs = glass pill with gradient active state */
+  .tabs{
+    width:fit-content;max-width:100%;gap:2px;padding:4px;margin-bottom:16px;
+    border:1px solid rgba(255,255,255,.09);border-radius:16px;background:rgba(3,25,32,.38);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:none;
+  }
+  .tab-btn{
+    font-family:var(--sans);text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
+    padding:9px 16px;border-radius:12px;color:#A9CDD0;
+    transition:background .2s,color .2s,box-shadow .2s;
+  }
+  .tab-btn:hover{color:#fff;background:rgba(255,255,255,.07);}
+  .tab-btn.active{background:linear-gradient(135deg,#5BEBDA,#22AEB0);color:#032B33;box-shadow:0 6px 16px -6px rgba(77,224,207,.7);}
+  .tab-btn.main{font-size:13px;padding:9px 18px;}
+  .tabs.subtabs{background:transparent;border:none;box-shadow:none;padding:0 0 4px;margin-bottom:14px;gap:8px;backdrop-filter:none;-webkit-backdrop-filter:none;}
+  .tab-btn.sub{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#A9CDD0;font-size:12.5px;padding:7px 15px;border-radius:12px;}
+  .tab-btn.sub:hover{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(77,224,207,.45);}
+  .tab-btn.sub.active{background:linear-gradient(135deg,#5BEBDA,#22AEB0);color:#032B33;border-color:rgba(77,224,207,.6);}
+  .tab-panel.active{animation:cesRise .35s ease both;}
+  .hint{color:var(--mute);}
+
+  /* tables */
+  .table-wrap{
+    background:linear-gradient(160deg,rgba(255,255,255,.085),rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.11);border-radius:18px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 10px 26px -16px rgba(0,0,0,.65);
+  }
+  thead th{
+    background:#0A4A57;color:#fff;font-family:var(--sans);font-size:11.5px;font-weight:700;
+    letter-spacing:.2px;text-transform:none;border-bottom:1px solid rgba(255,255,255,.1);
+  }
+  tbody td{border-bottom:1px solid rgba(255,255,255,.07);}
+  tbody tr:nth-child(even){background:rgba(255,255,255,.03);}
+  tbody tr:hover{background:rgba(77,224,207,.08);}
+  tbody tr.section-row td{
+    background:linear-gradient(90deg,rgba(77,224,207,.30),rgba(77,224,207,.07));
+    color:var(--foam);font-family:var(--sans);font-weight:700;letter-spacing:.3px;text-transform:uppercase;
+    border-bottom:1px solid rgba(77,224,207,.4);
+  }
+  tbody tr.section-row:hover td{background:linear-gradient(90deg,rgba(77,224,207,.34),rgba(77,224,207,.09));}
+  td.left{color:#fff;}
+  .computed{color:var(--ink);}
+  .computed.strong{color:#fff;}
+  tfoot td{background:rgba(77,224,207,.10);color:#fff;border-top:2px solid rgba(77,224,207,.6);}
+  tfoot td.left{font-family:var(--sans);letter-spacing:.3px;}
+
+  /* diameter summary */
+  .dia-section-title{
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.3px;color:var(--foam);
+    background:linear-gradient(90deg,rgba(77,224,207,.30),rgba(77,224,207,.07));
+    border:1px solid rgba(77,224,207,.35);border-bottom:none;border-radius:14px 14px 0 0;
+  }
+  .dia-section-title + .table-wrap{border-radius:0 0 18px 18px;}
+  .dia-grand-total{
+    background:linear-gradient(135deg,#0F6F7B,#0A4A57);border:1px solid rgba(77,224,207,.4);border-radius:18px;
+    box-shadow:0 10px 26px -16px rgba(0,0,0,.65);
+  }
+  .dia-grand-label{font-family:var(--sans);color:#B9EDE8;letter-spacing:.4px;}
+  .dia-grand-value{color:#fff;}
+
+  footer.tool-footer{
+    margin-top:34px;border-top:1px solid rgba(255,255,255,.1);padding-top:16px;
+    font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:none;color:var(--mute);text-align:left;
+  }
+
+  /* saved-calculations modal (extra specificity: the modal block comes later) */
+  .modal-overlay{background:rgba(2,16,21,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+  .modal-overlay .modal-box{
+    background:linear-gradient(160deg,#0B4350,#073A47);border:1px solid rgba(77,224,207,.28);border-radius:18px;
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.8);color:var(--ink);
+  }
+  .modal-overlay .modal-box h3{font-family:var(--sans);color:#fff;}
+  .modal-overlay .modal-box .proj-empty,.modal-overlay .modal-box .proj-date{color:var(--mute);}
+  .modal-overlay .modal-box .proj-item{border-bottom-color:rgba(255,255,255,.1);}
+  .modal-overlay .modal-box .proj-name{color:#fff;}
+  .modal-overlay .modal-box .btn-load{background:linear-gradient(135deg,#5BEBDA,#22AEB0);color:#032B33;font-weight:700;border-radius:8px;}
+  .modal-overlay .modal-box .btn-del{background:rgba(255,143,128,.18);color:#FF8F80;border:1px solid rgba(255,143,128,.4);border-radius:8px;}
+  .modal-overlay .modal-box .modal-close{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:10px;}
+  .modal-overlay .modal-box .modal-close:hover{background:rgba(77,224,207,.16);}
+
+  @media (max-width:720px){
+    header.hero{border-radius:16px;padding:22px 18px 20px;}
+    header.hero .actions{justify-content:flex-start;max-width:none;}
+    .tabs{width:100%;}
+  }
+  @media (prefers-reduced-motion:reduce){ *{animation:none !important;} }
+}
+
+/* ---------- print: keep the clean report, neutralise the new header ---------- */
+@media print{
+  .ces-bg{display:none !important;}
+  header.hero{
+    background:var(--navy-950) !important;color:#fff;animation:none !important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    box-shadow:none;border-radius:0;border:none;margin-bottom:10px;padding:14px 4px;
+  }
+  header.hero::before,header.hero::after{display:none;}
+  .hero-brand,.ces-logo{display:none !important;}
+  .hero-text h1{background:none !important;-webkit-text-fill-color:#fff;color:#fff !important;margin:0;font-size:20px;}
+  .hero-text p{color:rgba(255,255,255,.8);font-size:11px;}
+}
+</style>
+
+</head>
+<body>
+<div class="ces-bg no-print" aria-hidden="true">
+  <div class="ces-orb ces-o1"></div><div class="ces-orb ces-o2"></div><div class="ces-orb ces-o3"></div>
+  <div class="ces-waves"><svg class="a" viewBox="0 0 1200 120" preserveAspectRatio="none"><path d="M0 60c100-40 200-40 300 0s200 40 300 0 200-40 300 0 200 40 300 0V120H0z" fill="#1A9AA0" fill-opacity=".35"/></svg><svg class="b" viewBox="0 0 1200 120" preserveAspectRatio="none"><path d="M0 80c100-30 200-30 300 0s200 30 300 0 200-30 300 0 200 30 300 0V120H0z" fill="#4DE0CF" fill-opacity=".22"/></svg></div>
+</div>
+<div class="app">
+
+  <header class="hero">
+    <div class="hero-text">
+      <div class="hero-brand">
+        <div class="ces-logo"><svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6CF0DF"/><stop offset="1" stop-color="#128C9A"/></linearGradient><clipPath id="lgC"><path d="M20 7.2c4.7 6.1 8.4 9.9 8.4 14.5a8.4 8.4 0 0 1-16.8 0C11.6 17.1 15.3 13.3 20 7.2z"/></clipPath></defs><rect width="40" height="40" rx="12" fill="url(#lgA)"/><g transform="translate(20 21) scale(1.3) translate(-20 -20.2)"><path d="M20 7.2c4.7 6.1 8.4 9.9 8.4 14.5a8.4 8.4 0 0 1-16.8 0C11.6 17.1 15.3 13.3 20 7.2z" fill="#fff" fill-opacity=".97"/><g clip-path="url(#lgC)"><path class="w1" d="M9 20.6c2-1.6 3.8-1.6 5.8 0s3.8 1.6 5.8 0 3.8-1.6 5.8 0 3.8 1.6 5.8 0V32H9z" fill="#2BBFC0"/><path class="w2" d="M9 24.6c2-1.5 3.8-1.5 5.8 0s3.8 1.5 5.8 0 3.8-1.5 5.8 0 3.8 1.5 5.8 0V32H9z" fill="#0E7C8A"/></g></g></svg></div>
+        <div><b>CES Pool Suite</b><small>Engineering Cost Module</small></div>
+      </div>
+      <h1>Pipe &amp; Valve Cost Engine</h1>
+      <p>Pipes, Fittings &amp; Valves ( Cost Estimation for Pipe Line Accessories &amp; Fittings )</p>
+    </div>
+    <div class="actions">
+        <button class="btn" id="printBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg> Print / PDF</button>
+        <button class="btn" id="saveProjectBtn" title="Save a full copy of this calculation (quantities + prices) under a name you can reload later"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg> Save Progress</button>
+        <button class="btn" id="openSavedBtn" title="Open a previously saved calculation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg> Open Saved</button>
+        <button class="btn" id="resetQtyBtn" title="Clear all entered quantities (prices are not affected)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Reset Quantities</button>
+        <button class="btn" id="resetPricesBtn" title="Clear all saved prices and restore the original defaults"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg> Reset Prices</button>
+        <button class="btn primary" id="exportExcelBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg> Export Excel</button>
+      </div>
+  </header>
+
+  <div class="assump-bar">
+    <div class="assump-field"><label>VAT %</label><input type="number" id="vatInput" step="0.1"></div>
+    <div class="assump-field"><label>Installation &amp; Transport %</label><input type="number" id="instInput" step="0.1"></div>
+    <div class="assump-field"><label>Profit %</label><input type="number" id="profInput" step="0.1"></div>
+    <div class="assump-note">                 </div>
+  </div>
+
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <nav class="tabs" id="tabsNav"></nav>
+  <nav class="tabs subtabs" id="subTabsNav"></nav>
+
+  <div id="panels"></div>
+
+  <footer class="tool-footer">Created by: Eng. Hesham Mohamed</footer>
+</div>
+
+<div class="modal-overlay" id="savedModalOverlay">
+  <div class="modal-box">
+    <h3>Saved Calculations</h3>
+    <div id="savedProjectsList"></div>
+    <button class="modal-close" id="savedModalCloseBtn">Close</button>
+  </div>
+</div>
+
+<style>
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(11,18,32,.55);z-index:9999;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--panel);border-radius:12px;max-width:540px;width:92%;max-height:78vh;overflow:auto;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .modal-box h3{margin:0 0 14px;font-family:var(--display);color:var(--navy-900);}
+  .modal-box .proj-empty{color:var(--ink-soft);font-size:13px;padding:10px 0;}
+  .modal-box .proj-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft);}
+  .modal-box .proj-item:last-child{border-bottom:none;}
+  .modal-box .proj-name{font-weight:600;color:var(--navy-900);font-size:13.5px;}
+  .modal-box .proj-date{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .modal-box .proj-actions{display:flex;gap:6px;flex-shrink:0;}
+  .modal-box .proj-actions button{border:none;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:var(--sans);}
+  .modal-box .btn-load{background:var(--teal-500);color:#fff;}
+  .modal-box .btn-del{background:#b03a2e;color:#fff;}
+  .modal-box .modal-close{margin-top:16px;background:var(--navy-900);color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-family:var(--sans);}
+</style>
+
+<script>
+const DATA = {"cats": {"Pipe": [{"item": "Pipe", "size": "32 mm", "unit": "m", "qty": 0, "dry": 17.78, "orig_row": 3}, {"item": null, "size": "50 mm", "unit": "m", "qty": 0, "dry": 42.07, "orig_row": 4}, {"item": null, "size": "63 mm", "unit": "m", "qty": 0, "dry": 67.08, "orig_row": 5}, {"item": null, "size": "75 mm", "unit": "m", "qty": 0, "dry": 94.69, "orig_row": 6}, {"item": null, "size": "90 mm", "unit": "m", "qty": 0, "dry": 135.72, "orig_row": 7}, {"item": null, "size": "110 mm", "unit": "m", "qty": 0, "dry": 202.8, "orig_row": 8}, {"item": null, "size": "125 mm", "unit": "m", "qty": 0, "dry": 260.52, "orig_row": 9}, {"item": null, "size": "140 mm", "unit": "m", "qty": 0, "dry": 424.84, "orig_row": 10}, {"item": null, "size": "160 mm", "unit": "m", "qty": 0, "dry": 424.84, "orig_row": 11}, {"item": null, "size": "200 mm", "unit": "m", "qty": 0, "dry": 665.6, "orig_row": 12}, {"item": null, "size": "250 mm", "unit": "m", "qty": 0, "dry": 1034.8, "orig_row": 13}, {"item": null, "size": "315 mm", "unit": "m", "qty": 0, "dry": 1638, "orig_row": 14}, {"item": null, "size": "355 mm", "unit": "m", "qty": 0, "dry": 2074.8, "orig_row": 15}, {"item": null, "size": "400 mm", "unit": "m", "qty": 0, "dry": 2895.6, "orig_row": 16}], "Elbow 90": [{"item": "Elbow 90", "size": "32 mm", "unit": "N.o", "qty": 0, "dry": 11.06, "orig_row": 17}, {"item": null, "size": "50 mm", "unit": "N.o", "qty": 0, "dry": 30.3, "orig_row": 18}, {"item": null, "size": "63 mm", "unit": "N.o", "qty": 0, "dry": 49.9, "orig_row": 19}, {"item": null, "size": "75 mm", "unit": "N.o", "qty": 0, "dry": 88.7, "orig_row": 20}, {"item": null, "size": "90 mm", "unit": "N.o", "qty": 0, "dry": 135.3, "orig_row": 21}, {"item": null, "size": "110 mm", "unit": "N.o", "qty": 0, "dry": 228.6, "orig_row": 22}, {"item": null, "size": "125 mm", "unit": "N.o", "qty": 0, "dry": 434.9, "orig_row": 23}, {"item": null, "size": "140 mm", "unit": "N.o", "qty": 0, "dry": 662, "orig_row": 24}, {"item": null, "size": "160 mm", "unit": "N.o", "qty": 0, "dry": 726.4, "orig_row": 25}, {"item": null, "size": "200 mm", "unit": "N.o", "qty": 0, "dry": 1481.62, "orig_row": 26}, {"item": null, "size": "250 mm", "unit": "N.o", "qty": 0, "dry": 5053.17, "orig_row": 27}, {"item": null, "size": "315 mm", "unit": "N.o", "qty": 0, "dry": 12888.62, "orig_row": 28}, {"item": null, "size": "355 mm", "unit": "N.o", "qty": 0, "dry": 30789.54, "orig_row": 29}, {"item": null, "size": "400 mm", "unit": "N.o", "qty": 0, "dry": 31747.695, "orig_row": 30}], "Elbow 45": [{"item": "Elbow 45", "size": "32 mm", "unit": "N.o", "qty": 0, "dry": 15.238999999999999, "orig_row": 31}, {"item": null, "size": "50 mm", "unit": "N.o", "qty": 0, "dry": 36.672999999999995, "orig_row": 32}, {"item": null, "size": "63 mm", "unit": "N.o", "qty": 0, "dry": 55.573, "orig_row": 33}, {"item": null, "size": "75 mm", "unit": "N.o", "qty": 0, "dry": 105.31499999999998, "orig_row": 34}, {"item": null, "size": "90 mm", "unit": "N.o", "qty": 0, "dry": 151.14399999999998, "orig_row": 35}, {"item": null, "size": "110 mm", "unit": "N.o", "qty": 0, "dry": 296.81399999999996, "orig_row": 36}, {"item": null, "size": "125 mm", "unit": "N.o", "qty": 0, "dry": 378.525, "orig_row": 37}, {"item": null, "size": "140 mm", "unit": "N.o", "qty": 0, "dry": 573.111, "orig_row": 38}, {"item": null, "size": "160 mm", "unit": "N.o", "qty": 0, "dry": 573.909, "orig_row": 39}, {"item": null, "size": "200 mm", "unit": "N.o", "qty": 0, "dry": 1293.432, "orig_row": 40}, {"item": null, "size": "250 mm", "unit": "N.o", "qty": 0, "dry": 3817.835, "orig_row": 41}, {"item": null, "size": "315 mm", "unit": "N.o", "qty": 0, "dry": 11467.078, "orig_row": 42}, {"item": null, "size": "355 mm", "unit": "N.o", "qty": 0, "dry": 20375.382999999998, "orig_row": 43}, {"item": null, "size": "400 mm", "unit": "N.o", "qty": 0, "dry": 24734.765999999996, "orig_row": 44}], "Tee": [{"item": "Tee", "size": "32 mm", "unit": "N.o", "qty": 0, "dry": 20.594, "orig_row": 45}, {"item": null, "size": "50 mm", "unit": "N.o", "qty": 0, "dry": 42.42, "orig_row": 46}, {"item": null, "size": "63 mm", "unit": "N.o", "qty": 0, "dry": 61.04, "orig_row": 47}, {"item": null, "size": "75 mm", "unit": "N.o", "qty": 0, "dry": 114.051, "orig_row": 48}, {"item": null, "size": "90 mm", "unit": "N.o", "qty": 0, "dry": 209.076, "orig_row": 49}, {"item": null, "size": "110 mm", "unit": "N.o", "qty": 0, "dry": 331.737, "orig_row": 50}, {"item": null, "size": "125 mm", "unit": "N.o", "qty": 0, "dry": 610.183, "orig_row": 51}, {"item": null, "size": "140 mm", "unit": "N.o", "qty": 0, "dry": 803.215, "orig_row": 52}, {"item": null, "size": "160 mm", "unit": "N.o", "qty": 0, "dry": 931.3639999999999, "orig_row": 53}, {"item": null, "size": "200 mm", "unit": "N.o", "qty": 0, "dry": 1736.686, "orig_row": 54}, {"item": null, "size": "250 mm", "unit": "N.o", "qty": 0, "dry": 5516.014, "orig_row": 55}, {"item": null, "size": "315 mm", "unit": "N.o", "qty": 0, "dry": 15068.305, "orig_row": 56}, {"item": null, "size": "355 mm", "unit": "N.o", "qty": 0, "dry": 34116.922, "orig_row": 57}, {"item": null, "size": "400 mm", "unit": "N.o", "qty": 0, "dry": 34116.922, "orig_row": 58}], "Reducer": [{"item": "Reducer", "size": "50/32", "unit": "N.o", "qty": 0, "dry": 14.559999999999999, "orig_row": 59}, {"item": null, "size": "63/50", "unit": "N.o", "qty": 0, "dry": 35.748999999999995, "orig_row": 60}, {"item": null, "size": "63/32", "unit": "N.o", "qty": 0, "dry": 48.69899999999999, "orig_row": 61}, {"item": null, "size": "75/63", "unit": "N.o", "qty": 0, "dry": 63.14, "orig_row": 62}, {"item": null, "size": "75/50", "unit": "N.o", "qty": 0, "dry": 64.967, "orig_row": 63}, {"item": null, "size": "75/32", "unit": "N.o", "qty": 0, "dry": 48.69899999999999, "orig_row": 64}, {"item": null, "size": "90/75", "unit": "N.o", "qty": 0, "dry": 85.981, "orig_row": 65}, {"item": null, "size": "90/63", "unit": "N.o", "qty": 0, "dry": 85.981, "orig_row": 66}, {"item": null, "size": "90/50", "unit": "N.o", "qty": 0, "dry": 88.473, "orig_row": 67}, {"item": null, "size": "90/32", "unit": "N.o", "qty": 0, "dry": 103.03299999999999, "orig_row": 68}, {"item": null, "size": "110/90", "unit": "N.o", "qty": 0, "dry": 133.252, "orig_row": 69}, {"item": null, "size": "110/75", "unit": "N.o", "qty": 0, "dry": 137.15099999999998, "orig_row": 70}, {"item": null, "size": "110/63", "unit": "N.o", "qty": 0, "dry": 137.15099999999998, "orig_row": 71}, {"item": null, "size": "110/50", "unit": "N.o", "qty": 0, "dry": 173.005, "orig_row": 72}, {"item": null, "size": "110/32", "unit": "N.o", "qty": 0, "dry": 187.56499999999997, "orig_row": 73}, {"item": null, "size": "125/110", "unit": "N.o", "qty": 0, "dry": 544.922, "orig_row": 74}, {"item": null, "size": "125/90", "unit": "N.o", "qty": 0, "dry": 544.922, "orig_row": 75}, {"item": null, "size": "125/75", "unit": "N.o", "qty": 0, "dry": 682.073, "orig_row": 76}, {"item": null, "size": "125/63", "unit": "N.o", "qty": 0, "dry": 682.073, "orig_row": 77}, {"item": null, "size": "125/50", "unit": "N.o", "qty": 0, "dry": 717.927, "orig_row": 78}, {"item": null, "size": "125/32", "unit": "N.o", "qty": 0, "dry": 732.487, "orig_row": 79}, {"item": null, "size": "140 / 125", "unit": "N.o", "qty": 0, "dry": 871.8779999999999, "orig_row": 80}, {"item": null, "size": "140 / 110", "unit": "N.o", "qty": 0, "dry": 871.8779999999999, "orig_row": 81}, {"item": null, "size": "140 / 90", "unit": "N.o", "qty": 0, "dry": 871.8779999999999, "orig_row": 82}, {"item": null, "size": "140 / 75", "unit": "N.o", "qty": 0, "dry": 957.8589999999998, "orig_row": 83}, {"item": null, "size": "140 / 63", "unit": "N.o", "qty": 0, "dry": 957.8589999999998, "orig_row": 84}, {"item": null, "size": "140 / 50", "unit": "N.o", "qty": 0, "dry": 960.351, "orig_row": 85}, {"item": null, "size": "140 / 32", "unit": "N.o", "qty": 0, "dry": 974.911, "orig_row": 86}, {"item": null, "size": "160 / 140", "unit": "N.o", "qty": 0, "dry": 807.996, "orig_row": 87}, {"item": null, "size": "160 / 125", "unit": "N.o", "qty": 0, "dry": 1679.8739999999998, "orig_row": 88}, {"item": null, "size": "160 / 110", "unit": "N.o", "qty": 0, "dry": 396.522, "orig_row": 89}, {"item": null, "size": "160 / 90", "unit": "N.o", "qty": 0, "dry": 485.48499999999996, "orig_row": 90}, {"item": null, "size": "160 / 75", "unit": "N.o", "qty": 0, "dry": 571.466, "orig_row": 91}, {"item": null, "size": "160 / 63", "unit": "N.o", "qty": 0, "dry": 571.466, "orig_row": 92}, {"item": null, "size": "160 / 50", "unit": "N.o", "qty": 0, "dry": 573.958, "orig_row": 93}, {"item": null, "size": "160 / 32", "unit": "N.o", "qty": 0, "dry": 588.5179999999999, "orig_row": 94}, {"item": null, "size": "200 /160", "unit": "N.o", "qty": 0, "dry": 976.962, "orig_row": 95}, {"item": null, "size": "200 /140", "unit": "N.o", "qty": 0, "dry": 1784.9579999999999, "orig_row": 96}, {"item": null, "size": "200 /125", "unit": "N.o", "qty": 0, "dry": 2656.8359999999993, "orig_row": 97}, {"item": null, "size": "200 /110", "unit": "N.o", "qty": 0, "dry": 1200.829, "orig_row": 98}, {"item": null, "size": "200 / 90", "unit": "N.o", "qty": 0, "dry": 1334.081, "orig_row": 99}, {"item": null, "size": "200 /75", "unit": "N.o", "qty": 0, "dry": 1337.98, "orig_row": 100}, {"item": null, "size": "200 /63", "unit": "N.o", "qty": 0, "dry": 1337.98, "orig_row": 101}, {"item": null, "size": "200 /50", "unit": "N.o", "qty": 0, "dry": 1373.834, "orig_row": 102}, {"item": null, "size": "200 /32", "unit": "N.o", "qty": 0, "dry": 1388.394, "orig_row": 103}, {"item": null, "size": "250/200", "unit": "N.o", "qty": 0, "dry": 3601.2339999999995, "orig_row": 104}, {"item": null, "size": "250 /160", "unit": "N.o", "qty": 0, "dry": 3601.2339999999995, "orig_row": 105}, {"item": null, "size": "250 /140", "unit": "N.o", "qty": 0, "dry": 4409.23, "orig_row": 106}, {"item": null, "size": "250 /125", "unit": "N.o", "qty": 0, "dry": 5281.107999999999, "orig_row": 107}, {"item": null, "size": "250 /110", "unit": "N.o", "qty": 0, "dry": 3825.682, "orig_row": 108}, {"item": null, "size": "250 / 90", "unit": "N.o", "qty": 0, "dry": 3958.9339999999997, "orig_row": 109}, {"item": null, "size": "250 /75", "unit": "N.o", "qty": 0, "dry": 3962.833, "orig_row": 110}, {"item": null, "size": "250 /63", "unit": "N.o", "qty": 0, "dry": 3962.833, "orig_row": 111}, {"item": null, "size": "250 /50", "unit": "N.o", "qty": 0, "dry": 3998.6869999999994, "orig_row": 112}, {"item": null, "size": "250 /32", "unit": "N.o", "qty": 0, "dry": 4013.247, "orig_row": 113}, {"item": null, "size": "315/250", "unit": "N.o", "qty": 0, "dry": 6065.234, "orig_row": 114}, {"item": null, "size": "315 /200", "unit": "N.o", "qty": 0, "dry": 8300.466999999999, "orig_row": 115}, {"item": null, "size": "315 /160", "unit": "N.o", "qty": 0, "dry": 8300.466999999999, "orig_row": 116}, {"item": null, "size": "315 /140", "unit": "N.o", "qty": 0, "dry": 9108.463, "orig_row": 117}, {"item": null, "size": "315 /125", "unit": "N.o", "qty": 0, "dry": 9980.340999999999, "orig_row": 118}, {"item": null, "size": "315 /110", "unit": "N.o", "qty": 0, "dry": 8696.989, "orig_row": 119}, {"item": null, "size": "315 / 90", "unit": "N.o", "qty": 0, "dry": 8785.952, "orig_row": 120}, {"item": null, "size": "315 /75", "unit": "N.o", "qty": 0, "dry": 8871.932999999999, "orig_row": 121}, {"item": null, "size": "315 /63", "unit": "N.o", "qty": 0, "dry": 8871.932999999999, "orig_row": 122}, {"item": null, "size": "315 /50", "unit": "N.o", "qty": 0, "dry": 8874.425, "orig_row": 123}, {"item": null, "size": "315 /32", "unit": "N.o", "qty": 0, "dry": 8888.984999999999, "orig_row": 124}, {"item": null, "size": "355/315", "unit": "N.o", "qty": 0, "dry": 12387.269999999999, "orig_row": 125}, {"item": null, "size": "355/250", "unit": "N.o", "qty": 0, "dry": 18452.504, "orig_row": 126}, {"item": null, "size": "355 /200", "unit": "N.o", "qty": 0, "dry": 20687.736999999997, "orig_row": 127}, {"item": "Reducer", "size": "355 /160", "unit": "N.o", "qty": 0, "dry": 20687.736999999997, "orig_row": 128}, {"item": null, "size": "355 /140", "unit": "N.o", "qty": 0, "dry": 21495.732999999997, "orig_row": 129}, {"item": null, "size": "355 /125", "unit": "N.o", "qty": 0, "dry": 22367.610999999997, "orig_row": 130}, {"item": null, "size": "355 /110", "unit": "N.o", "qty": 0, "dry": 21084.259, "orig_row": 131}, {"item": null, "size": "355 / 90", "unit": "N.o", "qty": 0, "dry": 21173.221999999998, "orig_row": 132}, {"item": null, "size": "355 /75", "unit": "N.o", "qty": 0, "dry": 21259.202999999998, "orig_row": 133}, {"item": null, "size": "355 /63", "unit": "N.o", "qty": 0, "dry": 21259.202999999998, "orig_row": 134}, {"item": null, "size": "355 /50", "unit": "N.o", "qty": 0, "dry": 21261.694999999996, "orig_row": 135}, {"item": null, "size": "355 /32", "unit": "N.o", "qty": 0, "dry": 21276.254999999997, "orig_row": 136}, {"item": null, "size": "400 /355", "unit": "N.o", "qty": 0, "dry": 14436.197999999999, "orig_row": 137}, {"item": null, "size": "400/315", "unit": "N.o", "qty": 0, "dry": 14436.197999999999, "orig_row": 138}, {"item": null, "size": "400/250", "unit": "N.o", "qty": 0, "dry": 14436.197999999999, "orig_row": 139}, {"item": null, "size": "400 /200", "unit": "N.o", "qty": 0, "dry": 16671.431, "orig_row": 140}, {"item": null, "size": "400 /160", "unit": "N.o", "qty": 0, "dry": 17648.393, "orig_row": 141}, {"item": null, "size": "400 /140", "unit": "N.o", "qty": 0, "dry": 18456.389, "orig_row": 142}, {"item": null, "size": "400 /125", "unit": "N.o", "qty": 0, "dry": 19328.267, "orig_row": 143}, {"item": null, "size": "400 /110", "unit": "N.o", "qty": 0, "dry": 17872.260000000002, "orig_row": 144}, {"item": null, "size": "400 / 90", "unit": "N.o", "qty": 0, "dry": 18005.512000000002, "orig_row": 145}, {"item": null, "size": "400 /75", "unit": "N.o", "qty": 0, "dry": 18009.411, "orig_row": 146}, {"item": null, "size": "400 /63", "unit": "N.o", "qty": 0, "dry": 18009.411, "orig_row": 147}, {"item": null, "size": "400 /50", "unit": "N.o", "qty": 0, "dry": 18045.265, "orig_row": 148}, {"item": null, "size": "400 /32", "unit": "N.o", "qty": 0, "dry": 18059.824999999997, "orig_row": 149}], "Bush": [{"item": "Bush", "size": "50/32", "unit": "N.o", "qty": 0, "dry": 9.548, "orig_row": 150}, {"item": null, "size": "63/50", "unit": "N.o", "qty": 0, "dry": 19.124, "orig_row": 151}, {"item": null, "size": "63/32", "unit": "N.o", "qty": 0, "dry": 18.585, "orig_row": 152}, {"item": null, "size": "75/63", "unit": "N.o", "qty": 0, "dry": 20.804, "orig_row": 153}, {"item": null, "size": "75/50", "unit": "N.o", "qty": 0, "dry": 21.413, "orig_row": 154}, {"item": null, "size": "75/32", "unit": "N.o", "qty": 0, "dry": 21.419999999999998, "orig_row": 155}, {"item": null, "size": "90/75", "unit": "N.o", "qty": 0, "dry": 55.867, "orig_row": 156}, {"item": null, "size": "90/63", "unit": "N.o", "qty": 0, "dry": 55.867, "orig_row": 157}, {"item": null, "size": "90/50", "unit": "N.o", "qty": 0, "dry": 57.477, "orig_row": 158}, {"item": null, "size": "90/32", "unit": "N.o", "qty": 0, "dry": 67.02499999999999, "orig_row": 159}, {"item": null, "size": "110/90", "unit": "N.o", "qty": 0, "dry": 89.257, "orig_row": 160}, {"item": null, "size": "110/75", "unit": "N.o", "qty": 0, "dry": 89.257, "orig_row": 161}, {"item": null, "size": "110/63", "unit": "N.o", "qty": 0, "dry": 89.257, "orig_row": 162}, {"item": null, "size": "110/50", "unit": "N.o", "qty": 0, "dry": 116.51499999999999, "orig_row": 163}, {"item": null, "size": "110/32", "unit": "N.o", "qty": 0, "dry": 126.06299999999997, "orig_row": 164}, {"item": null, "size": "125/110", "unit": "N.o", "qty": 0, "dry": 186.97, "orig_row": 165}, {"item": null, "size": "125/90", "unit": "N.o", "qty": 0, "dry": 388.556, "orig_row": 166}, {"item": null, "size": "125/75", "unit": "N.o", "qty": 0, "dry": 388.556, "orig_row": 167}, {"item": null, "size": "125/63", "unit": "N.o", "qty": 0, "dry": 276.227, "orig_row": 168}, {"item": null, "size": "125/50", "unit": "N.o", "qty": 0, "dry": 303.485, "orig_row": 169}, {"item": null, "size": "125/32", "unit": "N.o", "qty": 0, "dry": 313.03299999999996, "orig_row": 170}, {"item": null, "size": "140 / 125", "unit": "N.o", "qty": 0, "dry": 200.851, "orig_row": 171}, {"item": null, "size": "140 / 110", "unit": "N.o", "qty": 0, "dry": 502.27799999999996, "orig_row": 172}, {"item": null, "size": "140 / 90", "unit": "N.o", "qty": 0, "dry": 502.27799999999996, "orig_row": 173}, {"item": null, "size": "140 / 75", "unit": "N.o", "qty": 0, "dry": 589.295, "orig_row": 174}, {"item": null, "size": "140 / 63", "unit": "N.o", "qty": 0, "dry": 477.0779999999999, "orig_row": 175}, {"item": null, "size": "140 / 50", "unit": "N.o", "qty": 0, "dry": 504.33599999999996, "orig_row": 176}, {"item": null, "size": "140 / 32", "unit": "N.o", "qty": 0, "dry": 513.884, "orig_row": 177}, {"item": null, "size": "160 / 140", "unit": "N.o", "qty": 0, "dry": 433.524, "orig_row": 178}, {"item": null, "size": "160 / 125", "unit": "N.o", "qty": 0, "dry": 240.40099999999998, "orig_row": 179}, {"item": null, "size": "160 / 110", "unit": "N.o", "qty": 0, "dry": 224.58799999999997, "orig_row": 180}, {"item": null, "size": "160 / 90", "unit": "N.o", "qty": 0, "dry": 224.58799999999997, "orig_row": 181}, {"item": null, "size": "160 / 75", "unit": "N.o", "qty": 0, "dry": 280.28, "orig_row": 182}, {"item": null, "size": "160 / 63", "unit": "N.o", "qty": 0, "dry": 280.28, "orig_row": 183}, {"item": null, "size": "160 / 50", "unit": "N.o", "qty": 0, "dry": 299.40399999999994, "orig_row": 184}, {"item": null, "size": "160 / 32", "unit": "N.o", "qty": 0, "dry": 298.86499999999995, "orig_row": 185}, {"item": null, "size": "200 /160", "unit": "N.o", "qty": 0, "dry": 501.80199999999996, "orig_row": 186}, {"item": null, "size": "200 /140", "unit": "N.o", "qty": 0, "dry": 935.326, "orig_row": 187}, {"item": null, "size": "200 /125", "unit": "N.o", "qty": 0, "dry": 742.203, "orig_row": 188}, {"item": null, "size": "200 /110", "unit": "N.o", "qty": 0, "dry": 726.39, "orig_row": 189}, {"item": null, "size": "200 / 90", "unit": "N.o", "qty": 0, "dry": 726.39, "orig_row": 190}, {"item": null, "size": "200 /75", "unit": "N.o", "qty": 0, "dry": 782.082, "orig_row": 191}, {"item": null, "size": "200 /63", "unit": "N.o", "qty": 0, "dry": 782.082, "orig_row": 192}, {"item": null, "size": "200 /50", "unit": "N.o", "qty": 0, "dry": 801.2059999999999, "orig_row": 193}, {"item": null, "size": "200 /32", "unit": "N.o", "qty": 0, "dry": 800.6669999999999, "orig_row": 194}, {"item": null, "size": "250/200", "unit": "N.o", "qty": 0, "dry": 2236.5699999999997, "orig_row": 195}, {"item": null, "size": "250 /160", "unit": "N.o", "qty": 0, "dry": 2236.5699999999997, "orig_row": 196}, {"item": "Bush", "size": "250 /140", "unit": "N.o", "qty": 0, "dry": 2670.094, "orig_row": 197}, {"item": null, "size": "250 /125", "unit": "N.o", "qty": 0, "dry": 2476.9709999999995, "orig_row": 198}, {"item": null, "size": "250 /110", "unit": "N.o", "qty": 0, "dry": 2459.688, "orig_row": 199}, {"item": null, "size": "250 / 90", "unit": "N.o", "qty": 0, "dry": 2548.945, "orig_row": 200}, {"item": null, "size": "250 /75", "unit": "N.o", "qty": 0, "dry": 2548.945, "orig_row": 201}, {"item": null, "size": "250 /63", "unit": "N.o", "qty": 0, "dry": 2548.945, "orig_row": 202}, {"item": null, "size": "250 /50", "unit": "N.o", "qty": 0, "dry": 2576.203, "orig_row": 203}, {"item": null, "size": "250 /32", "unit": "N.o", "qty": 0, "dry": 2585.751, "orig_row": 204}, {"item": null, "size": "315/250", "unit": "N.o", "qty": 0, "dry": 4615.2609999999995, "orig_row": 205}, {"item": null, "size": "315 /200", "unit": "N.o", "qty": 0, "dry": 4615.2609999999995, "orig_row": 206}, {"item": null, "size": "315 /160", "unit": "N.o", "qty": 0, "dry": 5116.762, "orig_row": 207}, {"item": null, "size": "315 /140", "unit": "N.o", "qty": 0, "dry": 5550.285999999999, "orig_row": 208}, {"item": null, "size": "315 /125", "unit": "N.o", "qty": 0, "dry": 5357.163, "orig_row": 209}, {"item": null, "size": "315 /110", "unit": "N.o", "qty": 0, "dry": 5341.217, "orig_row": 210}, {"item": null, "size": "315 / 90", "unit": "N.o", "qty": 0, "dry": 5430.474, "orig_row": 211}, {"item": null, "size": "315 /75", "unit": "N.o", "qty": 0, "dry": 5430.474, "orig_row": 212}, {"item": null, "size": "315 /63", "unit": "N.o", "qty": 0, "dry": 5430.474, "orig_row": 213}, {"item": null, "size": "315 /50", "unit": "N.o", "qty": 0, "dry": 5457.732, "orig_row": 214}, {"item": null, "size": "315 /32", "unit": "N.o", "qty": 0, "dry": 5467.28, "orig_row": 215}, {"item": null, "size": "355/315", "unit": "N.o", "qty": 0, "dry": 5563.879999999999, "orig_row": 216}, {"item": null, "size": "355/250", "unit": "N.o", "qty": 0, "dry": 10179.141, "orig_row": 217}, {"item": null, "size": "355 /200", "unit": "N.o", "qty": 0, "dry": 10179.141, "orig_row": 218}, {"item": null, "size": "355 /160", "unit": "N.o", "qty": 0, "dry": 10680.943, "orig_row": 219}, {"item": null, "size": "355 /140", "unit": "N.o", "qty": 0, "dry": 11114.466999999999, "orig_row": 220}, {"item": null, "size": "355 /125", "unit": "N.o", "qty": 0, "dry": 10921.343999999997, "orig_row": 221}, {"item": null, "size": "355 /110", "unit": "N.o", "qty": 0, "dry": 10905.530999999999, "orig_row": 222}, {"item": null, "size": "355 / 90", "unit": "N.o", "qty": 0, "dry": 10905.530999999999, "orig_row": 223}, {"item": null, "size": "355 /75", "unit": "N.o", "qty": 0, "dry": 10961.222999999998, "orig_row": 224}, {"item": null, "size": "355 /63", "unit": "N.o", "qty": 0, "dry": 10961.222999999998, "orig_row": 225}, {"item": null, "size": "355 /50", "unit": "N.o", "qty": 0, "dry": 10980.346999999998, "orig_row": 226}, {"item": null, "size": "355 /32", "unit": "N.o", "qty": 0, "dry": 10979.807999999999, "orig_row": 227}, {"item": null, "size": "400 /355", "unit": "N.o", "qty": 0, "dry": 6949.424999999999, "orig_row": 228}, {"item": null, "size": "400/315", "unit": "N.o", "qty": 0, "dry": 6949.424999999999, "orig_row": 229}, {"item": null, "size": "400/250", "unit": "N.o", "qty": 0, "dry": 6949.424999999999, "orig_row": 230}, {"item": null, "size": "400 /200", "unit": "N.o", "qty": 0, "dry": 9184.658, "orig_row": 231}, {"item": null, "size": "400 /160", "unit": "N.o", "qty": 0, "dry": 9686.460000000001, "orig_row": 232}, {"item": null, "size": "400 /140", "unit": "N.o", "qty": 0, "dry": 10119.984, "orig_row": 233}, {"item": null, "size": "400 /125", "unit": "N.o", "qty": 0, "dry": 9926.860999999999, "orig_row": 234}, {"item": null, "size": "400 /110", "unit": "N.o", "qty": 0, "dry": 9911.048, "orig_row": 235}, {"item": null, "size": "400 / 90", "unit": "N.o", "qty": 0, "dry": 9911.048, "orig_row": 236}, {"item": null, "size": "400 /75", "unit": "N.o", "qty": 0, "dry": 9966.74, "orig_row": 237}, {"item": null, "size": "400 /63", "unit": "N.o", "qty": 0, "dry": 9966.74, "orig_row": 238}, {"item": null, "size": "400 /50", "unit": "N.o", "qty": 0, "dry": 9985.864, "orig_row": 239}, {"item": null, "size": "400 /32", "unit": "N.o", "qty": 0, "dry": 9985.324999999999, "orig_row": 240}]}, "weld": [{"orig_row": 243, "size": "32 mm", "qty_per_joint": 20, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 17, "coeff": 2}, {"cat": "Elbow 45", "row": 31, "coeff": 2}, {"cat": "Tee", "row": 45, "coeff": 3}], "expected_joints": 0}, {"orig_row": 244, "size": "50 mm", "qty_per_joint": 30, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 18, "coeff": 2}, {"cat": "Elbow 45", "row": 32, "coeff": 2}, {"cat": "Tee", "row": 46, "coeff": 3}, {"cat": "Reducer", "row": 59, "coeff": 2}, {"cat": "Bush", "row": 150, "coeff": 2}], "expected_joints": 0}, {"orig_row": 245, "size": "63 mm", "qty_per_joint": 50, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 19, "coeff": 2}, {"cat": "Elbow 45", "row": 33, "coeff": 2}, {"cat": "Tee", "row": 47, "coeff": 3}, {"cat": "Reducer", "row": 60, "coeff": 2}, {"cat": "Reducer", "row": 61, "coeff": 2}, {"cat": "Bush", "row": 151, "coeff": 2}, {"cat": "Bush", "row": 152, "coeff": 2}], "expected_joints": 118}, {"orig_row": 246, "size": "75 mm", "qty_per_joint": 100, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 20, "coeff": 2}, {"cat": "Elbow 45", "row": 34, "coeff": 2}, {"cat": "Tee", "row": 48, "coeff": 3}, {"cat": "Reducer", "row": 63, "coeff": 2}, {"cat": "Reducer", "row": 62, "coeff": 2}, {"cat": "Reducer", "row": 64, "coeff": 2}, {"cat": "Bush", "row": 153, "coeff": 2}, {"cat": "Bush", "row": 154, "coeff": 2}, {"cat": "Bush", "row": 155, "coeff": 2}], "expected_joints": 75}, {"orig_row": 247, "size": "90 mm", "qty_per_joint": 150, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 21, "coeff": 2}, {"cat": "Elbow 45", "row": 35, "coeff": 2}, {"cat": "Tee", "row": 49, "coeff": 3}, {"cat": "Reducer", "row": 66, "coeff": 2}, {"cat": "Reducer", "row": 67, "coeff": 2}, {"cat": "Reducer", "row": 65, "coeff": 2}, {"cat": "Reducer", "row": 68, "coeff": 2}, {"cat": "Bush", "row": 156, "coeff": 2}, {"cat": "Bush", "row": 157, "coeff": 2}, {"cat": "Bush", "row": 158, "coeff": 2}, {"cat": "Bush", "row": 159, "coeff": 2}], "expected_joints": 86}, {"orig_row": 248, "size": "110 mm", "qty_per_joint": 180, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 22, "coeff": 2}, {"cat": "Elbow 45", "row": 36, "coeff": 2}, {"cat": "Tee", "row": 50, "coeff": 3}, {"cat": "Reducer", "row": 71, "coeff": 2}, {"cat": "Reducer", "row": 70, "coeff": 2}, {"cat": "Reducer", "row": 72, "coeff": 2}, {"cat": "Reducer", "row": 69, "coeff": 2}, {"cat": "Reducer", "row": 73, "coeff": 2}, {"cat": "Bush", "row": 160, "coeff": 2}, {"cat": "Bush", "row": 161, "coeff": 2}, {"cat": "Bush", "row": 162, "coeff": 2}, {"cat": "Bush", "row": 163, "coeff": 2}, {"cat": "Bush", "row": 164, "coeff": 2}], "expected_joints": 106}, {"orig_row": 249, "size": "125 mm", "qty_per_joint": 185, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 23, "coeff": 2}, {"cat": "Elbow 45", "row": 37, "coeff": 2}, {"cat": "Tee", "row": 51, "coeff": 3}, {"cat": "Reducer", "row": 76, "coeff": 2}, {"cat": "Reducer", "row": 77, "coeff": 2}, {"cat": "Reducer", "row": 75, "coeff": 2}, {"cat": "Reducer", "row": 78, "coeff": 2}, {"cat": "Reducer", "row": 74, "coeff": 2}, {"cat": "Reducer", "row": 79, "coeff": 2}, {"cat": "Bush", "row": 165, "coeff": 2}, {"cat": "Bush", "row": 166, "coeff": 2}, {"cat": "Bush", "row": 167, "coeff": 2}, {"cat": "Bush", "row": 168, "coeff": 2}, {"cat": "Bush", "row": 169, "coeff": 2}, {"cat": "Bush", "row": 170, "coeff": 2}], "expected_joints": 0}, {"orig_row": 250, "size": "140 mm", "qty_per_joint": 190, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 24, "coeff": 2}, {"cat": "Elbow 45", "row": 38, "coeff": 2}, {"cat": "Tee", "row": 52, "coeff": 3}, {"cat": "Reducer", "row": 83, "coeff": 2}, {"cat": "Reducer", "row": 82, "coeff": 2}, {"cat": "Reducer", "row": 84, "coeff": 2}, {"cat": "Reducer", "row": 81, "coeff": 2}, {"cat": "Reducer", "row": 85, "coeff": 2}, {"cat": "Reducer", "row": 80, "coeff": 2}, {"cat": "Reducer", "row": 86, "coeff": 2}, {"cat": "Bush", "row": 171, "coeff": 2}, {"cat": "Bush", "row": 172, "coeff": 2}, {"cat": "Bush", "row": 173, "coeff": 2}, {"cat": "Bush", "row": 174, "coeff": 2}, {"cat": "Bush", "row": 175, "coeff": 2}, {"cat": "Bush", "row": 176, "coeff": 2}, {"cat": "Bush", "row": 177, "coeff": 2}], "expected_joints": 0}, {"orig_row": 251, "size": "160 mm", "qty_per_joint": 200, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 25, "coeff": 2}, {"cat": "Elbow 45", "row": 39, "coeff": 2}, {"cat": "Tee", "row": 53, "coeff": 3}, {"cat": "Reducer", "row": 91, "coeff": 2}, {"cat": "Reducer", "row": 90, "coeff": 2}, {"cat": "Reducer", "row": 92, "coeff": 2}, {"cat": "Reducer", "row": 89, "coeff": 2}, {"cat": "Reducer", "row": 93, "coeff": 2}, {"cat": "Reducer", "row": 88, "coeff": 2}, {"cat": "Reducer", "row": 87, "coeff": 2}, {"cat": "Reducer", "row": 94, "coeff": 2}, {"cat": "Bush", "row": 178, "coeff": 2}, {"cat": "Bush", "row": 179, "coeff": 2}, {"cat": "Bush", "row": 180, "coeff": 2}, {"cat": "Bush", "row": 181, "coeff": 2}, {"cat": "Bush", "row": 182, "coeff": 2}, {"cat": "Bush", "row": 183, "coeff": 2}, {"cat": "Bush", "row": 184, "coeff": 2}, {"cat": "Bush", "row": 185, "coeff": 2}], "expected_joints": 52}, {"orig_row": 252, "size": "200 mm", "qty_per_joint": 350, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 26, "coeff": 2}, {"cat": "Elbow 45", "row": 40, "coeff": 2}, {"cat": "Tee", "row": 54, "coeff": 3}, {"cat": "Reducer", "row": 100, "coeff": 2}, {"cat": "Reducer", "row": 99, "coeff": 2}, {"cat": "Reducer", "row": 101, "coeff": 2}, {"cat": "Reducer", "row": 98, "coeff": 2}, {"cat": "Reducer", "row": 102, "coeff": 2}, {"cat": "Reducer", "row": 97, "coeff": 2}, {"cat": "Reducer", "row": 96, "coeff": 2}, {"cat": "Reducer", "row": 95, "coeff": 2}, {"cat": "Reducer", "row": 103, "coeff": 2}, {"cat": "Bush", "row": 186, "coeff": 2}, {"cat": "Bush", "row": 187, "coeff": 2}, {"cat": "Bush", "row": 188, "coeff": 2}, {"cat": "Bush", "row": 189, "coeff": 2}, {"cat": "Bush", "row": 190, "coeff": 2}, {"cat": "Bush", "row": 191, "coeff": 2}, {"cat": "Bush", "row": 192, "coeff": 2}, {"cat": "Bush", "row": 193, "coeff": 2}, {"cat": "Bush", "row": 194, "coeff": 2}], "expected_joints": 52}, {"orig_row": 253, "size": "250 mm", "qty_per_joint": 450, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 27, "coeff": 2}, {"cat": "Elbow 45", "row": 41, "coeff": 2}, {"cat": "Tee", "row": 55, "coeff": 3}, {"cat": "Reducer", "row": 110, "coeff": 2}, {"cat": "Reducer", "row": 109, "coeff": 2}, {"cat": "Reducer", "row": 111, "coeff": 2}, {"cat": "Reducer", "row": 108, "coeff": 2}, {"cat": "Reducer", "row": 112, "coeff": 2}, {"cat": "Reducer", "row": 107, "coeff": 2}, {"cat": "Reducer", "row": 106, "coeff": 2}, {"cat": "Reducer", "row": 105, "coeff": 2}, {"cat": "Reducer", "row": 104, "coeff": 2}, {"cat": "Reducer", "row": 113, "coeff": 2}, {"cat": "Bush", "row": 195, "coeff": 2}, {"cat": "Bush", "row": 196, "coeff": 2}, {"cat": "Bush", "row": 197, "coeff": 2}, {"cat": "Bush", "row": 198, "coeff": 2}, {"cat": "Bush", "row": 199, "coeff": 2}, {"cat": "Bush", "row": 200, "coeff": 2}, {"cat": "Bush", "row": 201, "coeff": 2}, {"cat": "Bush", "row": 202, "coeff": 2}, {"cat": "Bush", "row": 203, "coeff": 2}, {"cat": "Bush", "row": 204, "coeff": 2}], "expected_joints": 57}, {"orig_row": 254, "size": "315 mm", "qty_per_joint": 650, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 28, "coeff": 2}, {"cat": "Elbow 45", "row": 42, "coeff": 2}, {"cat": "Tee", "row": 56, "coeff": 3}, {"cat": "Reducer", "row": 121, "coeff": 2}, {"cat": "Reducer", "row": 120, "coeff": 2}, {"cat": "Reducer", "row": 122, "coeff": 2}, {"cat": "Reducer", "row": 119, "coeff": 2}, {"cat": "Reducer", "row": 123, "coeff": 2}, {"cat": "Reducer", "row": 118, "coeff": 2}, {"cat": "Reducer", "row": 117, "coeff": 2}, {"cat": "Reducer", "row": 116, "coeff": 2}, {"cat": "Reducer", "row": 115, "coeff": 2}, {"cat": "Reducer", "row": 114, "coeff": 2}, {"cat": "Reducer", "row": 124, "coeff": 2}, {"cat": "Bush", "row": 205, "coeff": 2}, {"cat": "Bush", "row": 206, "coeff": 2}, {"cat": "Bush", "row": 207, "coeff": 2}, {"cat": "Bush", "row": 208, "coeff": 2}, {"cat": "Bush", "row": 209, "coeff": 2}, {"cat": "Bush", "row": 210, "coeff": 2}, {"cat": "Bush", "row": 211, "coeff": 2}, {"cat": "Bush", "row": 212, "coeff": 2}, {"cat": "Bush", "row": 213, "coeff": 2}, {"cat": "Bush", "row": 214, "coeff": 2}, {"cat": "Bush", "row": 215, "coeff": 2}], "expected_joints": 0}, {"orig_row": 255, "size": "355 mm", "qty_per_joint": 750, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 29, "coeff": 2}, {"cat": "Elbow 45", "row": 43, "coeff": 2}, {"cat": "Tee", "row": 57, "coeff": 3}, {"cat": "Reducer", "row": 132, "coeff": 2}, {"cat": "Reducer", "row": 131, "coeff": 2}, {"cat": "Reducer", "row": 133, "coeff": 2}, {"cat": "Reducer", "row": 131, "coeff": 2}, {"cat": "Reducer", "row": 134, "coeff": 2}, {"cat": "Reducer", "row": 130, "coeff": 2}, {"cat": "Reducer", "row": 129, "coeff": 2}, {"cat": "Reducer", "row": 128, "coeff": 2}, {"cat": "Reducer", "row": 127, "coeff": 2}, {"cat": "Reducer", "row": 126, "coeff": 2}, {"cat": "Reducer", "row": 125, "coeff": 2}, {"cat": "Reducer", "row": 135, "coeff": 2}, {"cat": "Reducer", "row": 136, "coeff": 2}, {"cat": "Bush", "row": 216, "coeff": 2}, {"cat": "Bush", "row": 217, "coeff": 2}, {"cat": "Bush", "row": 218, "coeff": 2}, {"cat": "Bush", "row": 219, "coeff": 2}, {"cat": "Bush", "row": 220, "coeff": 2}, {"cat": "Bush", "row": 221, "coeff": 2}, {"cat": "Bush", "row": 222, "coeff": 2}, {"cat": "Bush", "row": 223, "coeff": 2}, {"cat": "Bush", "row": 224, "coeff": 2}, {"cat": "Bush", "row": 225, "coeff": 2}, {"cat": "Bush", "row": 226, "coeff": 2}, {"cat": "Bush", "row": 227, "coeff": 2}], "expected_joints": 0}, {"orig_row": 256, "size": "400 mm", "qty_per_joint": 800, "dry": 1000, "contrib": [{"cat": "Elbow 90", "row": 30, "coeff": 2}, {"cat": "Elbow 45", "row": 44, "coeff": 2}, {"cat": "Tee", "row": 58, "coeff": 3}, {"cat": "Reducer", "row": 146, "coeff": 2}, {"cat": "Reducer", "row": 144, "coeff": 2}, {"cat": "Reducer", "row": 147, "coeff": 2}, {"cat": "Reducer", "row": 145, "coeff": 2}, {"cat": "Reducer", "row": 148, "coeff": 2}, {"cat": "Reducer", "row": 143, "coeff": 2}, {"cat": "Reducer", "row": 142, "coeff": 2}, {"cat": "Reducer", "row": 141, "coeff": 2}, {"cat": "Reducer", "row": 140, "coeff": 2}, {"cat": "Reducer", "row": 139, "coeff": 2}, {"cat": "Reducer", "row": 138, "coeff": 2}, {"cat": "Reducer", "row": 149, "coeff": 2}, {"cat": "Reducer", "row": 137, "coeff": 2}, {"cat": "Bush", "row": 228, "coeff": 2}, {"cat": "Bush", "row": 229, "coeff": 2}, {"cat": "Bush", "row": 230, "coeff": 2}, {"cat": "Bush", "row": 231, "coeff": 2}, {"cat": "Bush", "row": 232, "coeff": 2}, {"cat": "Bush", "row": 233, "coeff": 2}, {"cat": "Bush", "row": 234, "coeff": 2}, {"cat": "Bush", "row": 235, "coeff": 2}, {"cat": "Bush", "row": 236, "coeff": 2}, {"cat": "Bush", "row": 237, "coeff": 2}, {"cat": "Bush", "row": 238, "coeff": 2}, {"cat": "Bush", "row": 239, "coeff": 2}, {"cat": "Bush", "row": 240, "coeff": 2}], "expected_joints": 0}], "solv": [{"orig_row": 259, "size": "32 mm", "dry": 500}, {"orig_row": 260, "size": "50 mm", "dry": 500}, {"orig_row": 261, "size": "63 mm", "dry": 500}, {"orig_row": 262, "size": "75 mm", "dry": 500}, {"orig_row": 263, "size": "90 mm", "dry": 500}, {"orig_row": 264, "size": "110 mm", "dry": 500}, {"orig_row": 265, "size": "125 mm", "dry": 500}, {"orig_row": 266, "size": "140 mm", "dry": 500}, {"orig_row": 267, "size": "160 mm", "dry": 500}, {"orig_row": 268, "size": "200 mm", "dry": 500}, {"orig_row": 269, "size": "250 mm", "dry": 500}, {"orig_row": 270, "size": "315 mm", "dry": 500}, {"orig_row": 271, "size": "355 mm", "dry": 500}, {"orig_row": 272, "size": "400 mm", "dry": 500}]};
+const CATS = ["Pipe", "Elbow 90", "Elbow 45", "Tee", "Reducer", "Bush"];
+const TAB_ICON = {"PriceList": "", "Pipe": "", "Elbow 90": "", "Elbow 45": "", "Tee": "", "Reducer": "", "Bush": "", "Weld": "", "Solv": "", "Summary": ""};
+const VALVE_DATA = {"cats":{"BallValve":[{"item":"Ball Valve","size":"32 mm","unit":"m","qty":0,"dry":368,"orig_row":1},{"item":null,"size":"50 mm","unit":"m","qty":0,"dry":530,"orig_row":2},{"item":null,"size":"63 mm","unit":"m","qty":0,"dry":779,"orig_row":3},{"item":null,"size":"75 mm","unit":"m","qty":0,"dry":2148,"orig_row":4}],"CheckValve":[{"item":"Check Valve","size":"32 mm","unit":"N.o","qty":0,"dry":423,"orig_row":5},{"item":null,"size":"50 mm","unit":"N.o","qty":0,"dry":572,"orig_row":6},{"item":null,"size":"63 mm","unit":"N.o","qty":0,"dry":611,"orig_row":7},{"item":null,"size":"75 mm","unit":"N.o","qty":0,"dry":1885,"orig_row":8},{"item":null,"size":"90 mm","unit":"N.o","qty":0,"dry":740,"orig_row":9},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":852,"orig_row":10},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":1520,"orig_row":11},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":1520,"orig_row":12},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":1676,"orig_row":13},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":1912,"orig_row":14},{"item":null,"size":"250 mm","unit":"N.o","qty":0,"dry":10121,"orig_row":15},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":14970,"orig_row":16},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":34500,"orig_row":17},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":40560,"orig_row":18}],"ButterflyValve":[{"item":"Butterfly Valve","size":"90 mm","unit":"N.o","qty":0,"dry":2481,"orig_row":19},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":2887,"orig_row":20},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":5407,"orig_row":21},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":5407,"orig_row":22},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":4072,"orig_row":23},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":11011,"orig_row":24}],"GearValve":[{"item":"Gear Valve","size":"250 mm","unit":"N.o","qty":0,"dry":33948,"orig_row":25},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":80031,"orig_row":26},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":212081,"orig_row":27},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":247588,"orig_row":28}],"FlexibleConnection":[{"item":"Flexible Connection","size":"32 mm","unit":"N.o","qty":0,"dry":0,"orig_row":29},{"item":null,"size":"50 mm","unit":"N.o","qty":0,"dry":0,"orig_row":30},{"item":null,"size":"63 mm","unit":"N.o","qty":0,"dry":5390,"orig_row":31},{"item":null,"size":"75 mm","unit":"N.o","qty":0,"dry":6600,"orig_row":32},{"item":null,"size":"90 mm","unit":"N.o","qty":0,"dry":6600,"orig_row":33},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":8500,"orig_row":34},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":9200,"orig_row":35},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":0,"orig_row":36},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":0,"orig_row":37},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":0,"orig_row":38},{"item":null,"size":"250 mm","unit":"N.o","qty":0,"dry":0,"orig_row":39},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":0,"orig_row":40},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":0,"orig_row":41},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":0,"orig_row":42}],"Socket":[{"item":"Socket","size":"32 mm","unit":"N.o","qty":0,"dry":51.3,"orig_row":43},{"item":null,"size":"50 mm","unit":"N.o","qty":0,"dry":51.3,"orig_row":44},{"item":null,"size":"63 mm","unit":"N.o","qty":0,"dry":72,"orig_row":45},{"item":null,"size":"75 mm","unit":"N.o","qty":0,"dry":84.6,"orig_row":46},{"item":null,"size":"90 mm","unit":"N.o","qty":0,"dry":113.4,"orig_row":47},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":169.2,"orig_row":48},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":247.5,"orig_row":49},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":394.2,"orig_row":50},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":445.5,"orig_row":51},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":780.3,"orig_row":52},{"item":null,"size":"250 mm","unit":"N.o","qty":0,"dry":1947.6,"orig_row":53},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":5062.5,"orig_row":54},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":7781.4,"orig_row":55},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":8118.9,"orig_row":56}],"Flanges":[{"item":"Flanges","size":"32 mm","unit":"N.o","qty":0,"dry":121.5,"orig_row":57},{"item":null,"size":"50 mm","unit":"N.o","qty":0,"dry":106.2,"orig_row":58},{"item":null,"size":"63 mm","unit":"N.o","qty":0,"dry":126,"orig_row":59},{"item":null,"size":"75 mm","unit":"N.o","qty":0,"dry":135,"orig_row":60},{"item":null,"size":"90 mm","unit":"N.o","qty":0,"dry":152.1,"orig_row":61},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":188.1,"orig_row":62},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":279,"orig_row":63},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":380.7,"orig_row":64},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":303.3,"orig_row":65},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":456.3,"orig_row":66},{"item":null,"size":"250 mm","unit":"N.o","qty":0,"dry":1618.2,"orig_row":67},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":4216.5,"orig_row":68},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":7060.5,"orig_row":69},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":7508.7,"orig_row":70}],"SightGlass":[{"item":"Sight Glass","size":"32 mm","unit":"N.o","qty":0,"dry":0,"orig_row":71},{"item":null,"size":"50 mm","unit":"N.o","qty":0,"dry":0,"orig_row":72},{"item":null,"size":"63 mm","unit":"N.o","qty":0,"dry":2500,"orig_row":73},{"item":null,"size":"75 mm","unit":"N.o","qty":0,"dry":0,"orig_row":74},{"item":null,"size":"90 mm","unit":"N.o","qty":0,"dry":0,"orig_row":75},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":0,"orig_row":76},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":0,"orig_row":77},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":0,"orig_row":78},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":0,"orig_row":79},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":0,"orig_row":80},{"item":null,"size":"250 mm","unit":"N.o","qty":0,"dry":0,"orig_row":81},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":0,"orig_row":82},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":0,"orig_row":83},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":0,"orig_row":84}],"PuddleFlange":[{"item":"Puddle Flange","size":"32 mm","unit":"N.o","qty":0,"dry":212,"orig_row":85},{"item":null,"size":"50 mm","unit":"N.o","qty":0,"dry":420,"orig_row":86},{"item":null,"size":"63 mm","unit":"N.o","qty":0,"dry":445,"orig_row":87},{"item":null,"size":"75 mm","unit":"N.o","qty":0,"dry":760,"orig_row":88},{"item":null,"size":"90 mm","unit":"N.o","qty":0,"dry":760,"orig_row":89},{"item":null,"size":"110 mm","unit":"N.o","qty":0,"dry":1100,"orig_row":90},{"item":null,"size":"125 mm","unit":"N.o","qty":0,"dry":2150,"orig_row":91},{"item":null,"size":"140 mm","unit":"N.o","qty":0,"dry":2150,"orig_row":92},{"item":null,"size":"160 mm","unit":"N.o","qty":0,"dry":2150,"orig_row":93},{"item":null,"size":"200 mm","unit":"N.o","qty":0,"dry":3225,"orig_row":94},{"item":null,"size":"250 mm","unit":"N.o","qty":0,"dry":4300,"orig_row":95},{"item":null,"size":"315 mm","unit":"N.o","qty":0,"dry":6050,"orig_row":96},{"item":null,"size":"355 mm","unit":"N.o","qty":0,"dry":7186,"orig_row":97},{"item":null,"size":"400 mm","unit":"N.o","qty":0,"dry":9108,"orig_row":98}]},"weld":[{"orig_row":1,"size":"32 mm","qty_per_joint":20,"dry":1000,"contrib":[{"cat":"BallValve","row":1,"coeff":2},{"cat":"CheckValve","row":5,"coeff":2},{"cat":"Socket","row":43,"coeff":2},{"cat":"PuddleFlange","row":85,"coeff":2}]},{"orig_row":2,"size":"50 mm","qty_per_joint":30,"dry":1000,"contrib":[{"cat":"BallValve","row":2,"coeff":2},{"cat":"CheckValve","row":6,"coeff":2},{"cat":"Socket","row":44,"coeff":2},{"cat":"PuddleFlange","row":86,"coeff":2}]},{"orig_row":3,"size":"63 mm","qty_per_joint":50,"dry":1000,"contrib":[{"cat":"BallValve","row":3,"coeff":2},{"cat":"CheckValve","row":7,"coeff":2},{"cat":"Socket","row":45,"coeff":2},{"cat":"PuddleFlange","row":87,"coeff":2}]},{"orig_row":4,"size":"75 mm","qty_per_joint":100,"dry":1000,"contrib":[{"cat":"BallValve","row":4,"coeff":2},{"cat":"CheckValve","row":8,"coeff":2},{"cat":"Socket","row":46,"coeff":2},{"cat":"PuddleFlange","row":88,"coeff":2}]},{"orig_row":5,"size":"90 mm","qty_per_joint":150,"dry":1000,"contrib":[{"cat":"Socket","row":47,"coeff":2},{"cat":"PuddleFlange","row":89,"coeff":2}]},{"orig_row":6,"size":"110 mm","qty_per_joint":180,"dry":1000,"contrib":[{"cat":"Socket","row":48,"coeff":2},{"cat":"PuddleFlange","row":90,"coeff":2}]},{"orig_row":7,"size":"125 mm","qty_per_joint":185,"dry":1000,"contrib":[{"cat":"Socket","row":49,"coeff":2},{"cat":"PuddleFlange","row":91,"coeff":2}]},{"orig_row":8,"size":"140 mm","qty_per_joint":190,"dry":1000,"contrib":[{"cat":"Socket","row":50,"coeff":2},{"cat":"PuddleFlange","row":92,"coeff":2}]},{"orig_row":9,"size":"160 mm","qty_per_joint":200,"dry":1000,"contrib":[{"cat":"Socket","row":51,"coeff":2},{"cat":"PuddleFlange","row":93,"coeff":2}]},{"orig_row":10,"size":"200 mm","qty_per_joint":350,"dry":1000,"contrib":[{"cat":"Socket","row":52,"coeff":2},{"cat":"PuddleFlange","row":94,"coeff":2}]},{"orig_row":11,"size":"250 mm","qty_per_joint":450,"dry":1000,"contrib":[{"cat":"Socket","row":53,"coeff":2},{"cat":"PuddleFlange","row":95,"coeff":2}]},{"orig_row":12,"size":"315 mm","qty_per_joint":650,"dry":1000,"contrib":[{"cat":"Socket","row":54,"coeff":2},{"cat":"PuddleFlange","row":96,"coeff":2}]},{"orig_row":13,"size":"355 mm","qty_per_joint":750,"dry":1000,"contrib":[{"cat":"Socket","row":55,"coeff":2},{"cat":"PuddleFlange","row":97,"coeff":2}]},{"orig_row":14,"size":"400 mm","qty_per_joint":800,"dry":1000,"contrib":[{"cat":"Socket","row":56,"coeff":2},{"cat":"PuddleFlange","row":98,"coeff":2}]}],"solv":[{"orig_row":1,"size":"32 mm","dry":500},{"orig_row":2,"size":"50 mm","dry":500},{"orig_row":3,"size":"63 mm","dry":500},{"orig_row":4,"size":"75 mm","dry":500},{"orig_row":5,"size":"90 mm","dry":500},{"orig_row":6,"size":"110 mm","dry":500},{"orig_row":7,"size":"125 mm","dry":500},{"orig_row":8,"size":"140 mm","dry":500},{"orig_row":9,"size":"160 mm","dry":500},{"orig_row":10,"size":"200 mm","dry":500},{"orig_row":11,"size":"250 mm","dry":500},{"orig_row":12,"size":"315 mm","dry":500},{"orig_row":13,"size":"355 mm","dry":500},{"orig_row":14,"size":"400 mm","dry":500}]};
+const VALVE_CATS = ["BallValve","CheckValve","ButterflyValve","GearValve","FlexibleConnection","Socket","Flanges","SightGlass","PuddleFlange"];
+const VALVE_CAT_LABELS = {"BallValve":"Ball Valve","CheckValve":"Check Valve","ButterflyValve":"Butterfly Valve","GearValve":"Gear Valve","FlexibleConnection":"Flexible Connection","Socket":"Socket","Flanges":"Flanges","SightGlass":"Sight Glass","PuddleFlange":"Puddle Flange"};
+const PIPE_CAT_LABELS = {"Pipe":"Pipe","Elbow 90":"Elbow 90","Elbow 45":"Elbow 45","Tee":"Tee","Reducer":"Reducer","Bush":"Bush"};
+const DIAMS = [32,50,63,75,90,110,125,140,160,200,250,315,355,400];
+function normSize(s){ const m = String(s||'').match(/\d+/); return m ? m[0] : ''; }
+
+</script>
+<script>
+(function(){
+"use strict";
+
+let assump = {vat:0.14, inst:0.15, prof:0.25};
+
+function fmt(n){ return (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtInt(n){ return Math.round(Number(n)||0).toLocaleString(); }
+function round2(n){ return Math.round((Number(n)||0)*100)/100; }
+
+/* ---------- lookups ---------- */
+const rowByKey = {}; // key = cat+'_'+orig_row -> row object
+CATS.forEach(cat=>{
+  DATA.cats[cat].forEach(r=>{ rowByKey[cat+'_'+r.orig_row] = r; });
+});
+DATA.weld.forEach(r=>{ rowByKey['Weld_'+r.orig_row] = r; });
+DATA.solv.forEach(r=>{ rowByKey['Solv_'+r.orig_row] = r; });
+VALVE_CATS.forEach(cat=>{
+  VALVE_DATA.cats[cat].forEach(r=>{ rowByKey[cat+'_'+r.orig_row] = r; });
+});
+VALVE_DATA.weld.forEach(r=>{ rowByKey['VWeld_'+r.orig_row] = r; });
+VALVE_DATA.solv.forEach(r=>{ rowByKey['VSolv_'+r.orig_row] = r; });
+
+/* ---------- saved prices (localStorage) ---------- */
+const STORAGE_KEY = 'pipingCostApp_savedPrices_v1';
+
+function saveDryPrices(){
+  try{
+    const dry = {};
+    Object.keys(rowByKey).forEach(k=>{ dry[k] = rowByKey[k].dry; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({dry:dry, assump:assump}));
+  }catch(e){ /* storage unavailable (e.g. private browsing) - ignore */ }
+}
+
+function loadSavedPrices(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(saved && saved.dry){
+      Object.keys(saved.dry).forEach(k=>{
+        if(rowByKey.hasOwnProperty(k)) rowByKey[k].dry = Number(saved.dry[k])||0;
+      });
+    }
+    if(saved && saved.assump){
+      assump.vat = Number(saved.assump.vat)||assump.vat;
+      assump.inst = Number(saved.assump.inst)||assump.inst;
+      assump.prof = Number(saved.assump.prof)||assump.prof;
+    }
+  }catch(e){ /* corrupt/unavailable storage - fall back to defaults */ }
+}
+loadSavedPrices();
+
+function resetSavedPrices(){
+  if(confirm('Clear all saved prices and restore the original defaults?')){
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    location.reload();
+  }
+}
+
+/* ---------- full working-state save / load (quantities + prices + assumptions) ---------- */
+const AUTOSAVE_KEY = 'pipingCostApp_autosave_v1';
+const PROJECTS_KEY = 'pipingCostApp_savedProjects_v1';
+
+function captureFullState(){
+  const qty = {}, qtyPerJoint = {}, dry = {};
+  Object.keys(rowByKey).forEach(k=>{
+    const r = rowByKey[k];
+    dry[k] = r.dry;
+    if(r.hasOwnProperty('qty')) qty[k] = r.qty;
+    if(r.hasOwnProperty('qty_per_joint')) qtyPerJoint[k] = r.qty_per_joint;
+  });
+  return {
+    qty: qty, qtyPerJoint: qtyPerJoint, dry: dry,
+    assump: {vat:assump.vat, inst:assump.inst, prof:assump.prof},
+    savedAt: new Date().toISOString()
+  };
+}
+
+function applyFullState(state){
+  if(!state) return;
+  Object.keys(rowByKey).forEach(k=>{
+    const r = rowByKey[k];
+    if(state.dry && state.dry.hasOwnProperty(k)) r.dry = Number(state.dry[k])||0;
+    if(state.qty && state.qty.hasOwnProperty(k)) r.qty = Number(state.qty[k])||0;
+    if(state.qtyPerJoint && state.qtyPerJoint.hasOwnProperty(k)) r.qty_per_joint = Number(state.qtyPerJoint[k])||0;
+  });
+  if(state.assump){
+    assump.vat = Number(state.assump.vat)||assump.vat;
+    assump.inst = Number(state.assump.inst)||assump.inst;
+    assump.prof = Number(state.assump.prof)||assump.prof;
+  }
+  Object.keys(rowByKey).forEach(k=>{
+    const r = rowByKey[k];
+    const qInput = document.getElementById('q_'+k);
+    if(qInput && !qInput.hasAttribute('readonly')) qInput.value = r.qty;
+    const dInput = document.getElementById('d_'+k);
+    if(dInput) dInput.value = r.dry;
+    const qpjInput = document.getElementById('qpj_'+k);
+    if(qpjInput) qpjInput.value = r.qty_per_joint;
+  });
+  const vatInput = document.getElementById('vatInput');
+  const instInput = document.getElementById('instInput');
+  const profInput = document.getElementById('profInput');
+  if(vatInput) vatInput.value = round2(assump.vat*100);
+  if(instInput) instInput.value = round2(assump.inst*100);
+  if(profInput) profInput.value = round2(assump.prof*100);
+  saveDryPrices();
+  recalcAll();
+}
+
+function hasAnyQty(state){
+  if(!state || !state.qty) return false;
+  return Object.keys(state.qty).some(k=> Number(state.qty[k])>0);
+}
+
+let autosaveTimer = null;
+function scheduleAutosave(){
+  if(autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(function(){
+    try{
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(captureFullState()));
+    }catch(e){ /* storage unavailable - ignore */ }
+  }, 800);
+}
+
+function offerAutosaveRestore(){
+  try{
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if(!raw) return;
+    const state = JSON.parse(raw);
+    if(!hasAnyQty(state)) return;
+    const when = state.savedAt ? new Date(state.savedAt).toLocaleString() : '';
+    if(confirm('We found unsaved work from last time (from '+when+'). Continue where you left off?')){
+      applyFullState(state);
+    }
+  }catch(e){ /* corrupt autosave - ignore */ }
+}
+
+function loadProjects(){
+  try{
+    const raw = localStorage.getItem(PROJECTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+
+function saveProjectAs(name){
+  try{
+    const projects = loadProjects();
+    const id = 'p_'+Date.now();
+    projects[id] = Object.assign({name:name}, captureFullState());
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+    return true;
+  }catch(e){ return false; }
+}
+
+function deleteProject(id){
+  try{
+    const projects = loadProjects();
+    delete projects[id];
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+  }catch(e){ /* ignore */ }
+}
+
+function renderSavedProjectsList(){
+  const wrap = document.getElementById('savedProjectsList');
+  if(!wrap) return;
+  const projects = loadProjects();
+  const ids = Object.keys(projects).sort(function(a,b){ return (projects[b].savedAt||'').localeCompare(projects[a].savedAt||''); });
+  if(ids.length===0){
+    wrap.innerHTML = '<div class="proj-empty">No saved calculations yet. Use the "Save Progress" button to save the current calculation under a name.</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  ids.forEach(function(id){
+    const p = projects[id];
+    const when = p.savedAt ? new Date(p.savedAt).toLocaleString() : '';
+    const item = el('div',{class:'proj-item'});
+    const info = el('div',{});
+    info.appendChild(el('div',{class:'proj-name'}, p.name||'Untitled'));
+    info.appendChild(el('div',{class:'proj-date'}, when));
+    item.appendChild(info);
+    const actions = el('div',{class:'proj-actions'});
+    const loadBtn = el('button',{class:'btn-load'}, 'Load');
+    loadBtn.addEventListener('click', function(){
+      applyFullState(p);
+      document.getElementById('savedModalOverlay').classList.remove('open');
+    });
+    const delBtn = el('button',{class:'btn-del'}, 'Delete');
+    delBtn.addEventListener('click', function(){
+      if(confirm('Are you sure you want to delete the saved calculation "'+(p.name||'')+'"?')){
+        deleteProject(id);
+        renderSavedProjectsList();
+      }
+    });
+    actions.appendChild(loadBtn);
+    actions.appendChild(delBtn);
+    item.appendChild(actions);
+    wrap.appendChild(item);
+  });
+}
+
+function resetAllQuantities(){
+  if(!confirm('This will clear all entered quantities (prices and rates stay the same). Continue?')) return;
+  Object.keys(rowByKey).forEach(function(k){
+    const r = rowByKey[k];
+    if(r.hasOwnProperty('qty')) r.qty = 0;
+  });
+  Object.keys(rowByKey).forEach(function(k){
+    const r = rowByKey[k];
+    if(!r.hasOwnProperty('qty')) return;
+    const qInput = document.getElementById('q_'+k);
+    if(qInput && !qInput.hasAttribute('readonly')) qInput.value = 0;
+  });
+  recalcAll();
+}
+
+/* unified helpers so table-builders / recalc work for either group transparently */
+function getCatRows(cat){ return CATS.includes(cat) ? DATA.cats[cat] : VALVE_DATA.cats[cat]; }
+function getCatLabel(cat){ return PIPE_CAT_LABELS[cat] || VALVE_CAT_LABELS[cat] || cat; }
+const rowTotalMap = {}; // key = cat+'_'+orig_row -> computed total price (filled every recalc, used by Diameter Summary)
+
+function qtyOf(cat, row){ return Number(rowByKey[cat+'_'+row].qty)||0; }
+
+function jointCount(w){
+  return w.contrib.reduce((sum,c)=> sum + c.coeff*qtyOf(c.cat, c.row), 0);
+}
+
+function pricing(dry, qty){
+  const vatAmt = dry*assump.vat;
+  const instAmt = dry*assump.inst;
+  const concept = dry+vatAmt+instAmt;
+  const profAmt = concept*assump.prof;
+  const unitRate = concept+profAmt;
+  const total = unitRate*qty;
+  return {vatAmt, instAmt, concept, profAmt, unitRate, total};
+}
+
+/* ---------- DOM builders ---------- */
+function el(tag, attrs, html){
+  const e = document.createElement(tag);
+  if(attrs) for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(html!==undefined) e.innerHTML = html;
+  return e;
+}
+
+function toolbar(text){
+  const d = el('div',{class:'panel-toolbar'});
+  d.appendChild(el('span',{class:'hint'}, text));
+  return d;
+}
+
+const CAT_HEAD = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
+const CAT_HEAD_VALVE = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Bolts (75mm+)','Total Price'];
+const WS_HEAD = ['Size','Qty / Joint (g)','Qty (kg)','N.o Joints','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
+
+function buildCatTable(cat){
+  const isValve = VALVE_CATS.includes(cat);
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_'+cat, class:'cat-table'});
+  const thead = el('thead');
+  const trh = el('tr');
+  (isValve ? CAT_HEAD_VALVE : CAT_HEAD).forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  getCatRows(cat).forEach(r=>{
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, r.item||''));
+    tr.appendChild(el('td',{class:'left'}, r.size||''));
+    tr.appendChild(el('td',{class:'left'}, r.unit||''));
+    const qtyTd = el('td');
+    const isAutoQty = (cat==='Socket' || cat==='Flanges');
+    const qtyInput = el('input',{type:'number',step:'1',id:'q_'+cat+'_'+r.orig_row,value:r.qty});
+    if(isAutoQty){
+      qtyInput.setAttribute('readonly','readonly');
+      qtyInput.style.background = '#eef1f5';
+      qtyInput.style.cursor = 'not-allowed';
+      qtyInput.setAttribute('title', cat==='Socket'
+        ? 'Auto-calculated: (Butterfly + Gear + Check valves) × 2 + Flexible Connection × 2, for the same diameter, diameters 90 mm and above only.'
+        : 'Auto-calculated: equals the Socket quantity for the same diameter.');
+    } else {
+      qtyInput.addEventListener('input', function(){ r.qty = Number(this.value)||0; recalcAll(); });
+    }
+    if(cat==='Pipe'){
+      qtyInput.setAttribute('title','Rounds up to the nearest multiple of 6 (standard pipe length) when you finish typing.');
+      qtyInput.addEventListener('blur', function(){
+        const val = Number(this.value)||0;
+        if(val>0){
+          const rounded = Math.ceil(val/6)*6;
+          this.value = rounded;
+          r.qty = rounded;
+          recalcAll();
+        }
+      });
+      qtyInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ this.blur(); } });
+    }
+    qtyTd.appendChild(qtyInput);
+    tr.appendChild(qtyTd);
+    (isValve ? ['dry','vat','inst','concept','prof','rate','bolts','total'] : ['dry','vat','inst','concept','prof','rate','total']).forEach(f=>{
+      tr.appendChild(el('td',{}, el('span',{class:'computed'+(f==='total'?' strong':''), id:'c_'+f+'_'+cat+'_'+r.orig_row}, '0.00').outerHTML));
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const tfoot = el('tfoot');
+  const trf = el('tr');
+  trf.appendChild(el('td',{class:'left',colspan:isValve?'11':'10'}, 'TOTAL'));
+  trf.appendChild(el('td',{}, el('span',{id:'tot_'+cat}, '0.00').outerHTML));
+  tfoot.appendChild(trf);
+  table.appendChild(tfoot);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+const WS_ROWS = {Weld:()=>DATA.weld, Solv:()=>DATA.solv, VWeld:()=>VALVE_DATA.weld, VSolv:()=>VALVE_DATA.solv};
+const WS_IS_WELD = {Weld:true, Solv:false, VWeld:true, VSolv:false};
+
+function buildWSTable(kind){
+  const rows = WS_ROWS[kind]();
+  const isWeld = WS_IS_WELD[kind];
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_'+kind, class:'ws-table'});
+  const thead = el('thead');
+  const trh = el('tr');
+  WS_HEAD.forEach((h,i)=> trh.appendChild(el('th',{class:i<1?'left':''}, h)));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  rows.forEach((r)=>{
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, r.size||''));
+    const qpjTd = el('td');
+    if(isWeld){
+      const inp = el('input',{type:'number',step:'1',id:'qpj_'+kind+'_'+r.orig_row,value:r.qty_per_joint});
+      inp.addEventListener('input', function(){ r.qty_per_joint = Number(this.value)||0; recalcAll(); });
+      qpjTd.appendChild(inp);
+    } else {
+      qpjTd.appendChild(el('span',{class:'computed', id:'qpj_'+kind+'_'+r.orig_row}, '0.00'));
+    }
+    tr.appendChild(qpjTd);
+    ['kgqty','joints','dry','vat','inst','concept','prof','rate','total'].forEach(f=>{
+      tr.appendChild(el('td',{}, el('span',{class:'computed'+(f==='total'?' strong':''), id:'c_'+f+'_'+kind+'_'+r.orig_row}, '0').outerHTML));
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const tfoot = el('tfoot');
+  const trf = el('tr');
+  trf.appendChild(el('td',{class:'left',colspan:'10'}, 'TOTAL'));
+  trf.appendChild(el('td',{}, el('span',{id:'tot_'+kind}, '0.00').outerHTML));
+  tfoot.appendChild(trf);
+  table.appendChild(tfoot);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/* group configs: how PriceList / Summary tables source their categories + weld/solv ids per main tab */
+const GROUP_CFG = {
+  Pipe:  { cats:CATS,       data:DATA,       weldKind:'Weld',  solvKind:'Solv',  weldLabel:'Welding (rod / fusion material)', solvLabel:'Solvent Cement',  tblSuffix:'',  grandId:'grandTotal_Pipe' },
+  Valve: { cats:VALVE_CATS, data:VALVE_DATA, weldKind:'VWeld', solvKind:'VSolv', weldLabel:'Welding (Valves &amp; Accessories)', solvLabel:'Solvent Cement (Valves &amp; Accessories)', tblSuffix:'V', grandId:'grandTotal_Valve', solventFlatFee:480, solventFlatMinSize:75 }
+};
+
+function buildPriceListTable(group){
+  const cfg = GROUP_CFG[group];
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_'+cfg.tblSuffix+'PriceList'});
+  const thead = el('thead');
+  const trh = el('tr');
+  ['Item','Size','Unit','Dry Cost (EGP) — editable'].forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+
+  function addSection(title){
+    const tr = el('tr',{class:'section-row'});
+    tr.appendChild(el('td',{colspan:'4'}, title));
+    tbody.appendChild(tr);
+  }
+  function addRow(cat, r, itemLabel, unitLabel){
+    const tr = el('tr');
+    tr.appendChild(el('td',{class:'left'}, itemLabel));
+    tr.appendChild(el('td',{class:'left'}, r.size||''));
+    tr.appendChild(el('td',{class:'left'}, unitLabel));
+    const dryTd = el('td');
+    const inp = el('input',{type:'number',step:'1',id:'d_'+cat+'_'+r.orig_row,value:r.dry});
+    inp.addEventListener('input', function(){ r.dry = Number(this.value)||0; saveDryPrices(); recalcAll(); });
+    dryTd.appendChild(inp);
+    tr.appendChild(dryTd);
+    tbody.appendChild(tr);
+  }
+
+  cfg.cats.forEach(cat=>{
+    addSection(getCatLabel(cat));
+    cfg.data.cats[cat].forEach(r=> addRow(cat, r, r.item||getCatLabel(cat), r.unit||''));
+  });
+  addSection(cfg.weldLabel);
+  cfg.data.weld.forEach(r=> addRow(cfg.weldKind, r, 'Welding', 'kg'));
+  addSection(cfg.solvLabel);
+  cfg.data.solv.forEach(r=> addRow(cfg.solvKind, r, 'Solvent', 'kg'));
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function buildSummaryTable(group){
+  const cfg = GROUP_CFG[group];
+  const wrap = el('div',{class:'table-wrap'});
+  const table = el('table',{id:'tbl_'+cfg.tblSuffix+'Summary'});
+  const thead = el('thead');
+  const trh = el('tr');
+  trh.appendChild(el('th',{class:'left'}, 'Category'));
+  trh.appendChild(el('th',{}, 'Total Price (EGP)'));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  [...cfg.cats,'Welding','Solvent'].forEach(name=>{
+    const tr = el('tr');
+    const key = name==='Welding'?cfg.weldKind:(name==='Solvent'?cfg.solvKind:name);
+    tr.appendChild(el('td',{class:'left'}, name==='Welding'||name==='Solvent'?name:getCatLabel(name)));
+    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'sum_'+key}, '0.00').outerHTML));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const tfoot = el('tfoot');
+  const trf = el('tr');
+  trf.appendChild(el('td',{class:'left'}, 'GRAND TOTAL'));
+  trf.appendChild(el('td',{}, el('span',{id:cfg.grandId}, '0.00').outerHTML));
+  tfoot.appendChild(trf);
+  table.appendChild(tfoot);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+const DIA_SPLIT_MIN = 250;
+
+function buildDiaSectionTitle(text){
+  return el('div',{class:'dia-section-title'}, text);
+}
+
+function buildDiameterSummaryTable(){
+  const outer = el('div',{});
+  const diamsSmall = DIAMS.filter(d=> d < DIA_SPLIT_MIN);
+  const diamsBig = DIAMS.filter(d=> d >= DIA_SPLIT_MIN);
+
+  /* ---- Section A: diameters below 250mm — one combined total (no valves) ---- */
+  outer.appendChild(buildDiaSectionTitle('Diameters below 250 mm — combined total (Pipe + Fittings, no valves)'));
+  const wrapA = el('div',{class:'table-wrap'});
+  const tableA = el('table',{id:'tbl_DiaSummaryA'});
+  const theadA = el('thead');
+  const trhA = el('tr');
+  ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Total Cost — Pipe + Fittings (EGP)',
+   'Cost / Meter — Pipe only (EGP/m)','Cost / Meter — Pipe + Fittings (EGP/m)'
+  ].forEach((h,i)=> trhA.appendChild(el('th',{class:i===0?'left':''}, h)));
+  theadA.appendChild(trhA);
+  tableA.appendChild(theadA);
+  const tbodyA = el('tbody');
+  diamsSmall.forEach(d=>{
+    const tr = el('tr',{id:'diarow_'+d});
+    tr.appendChild(el('td',{class:'left'}, d+' mm'));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_len_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_pipecost_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'dia_cost_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_cpmPipe_'+d}, '—').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'dia_cpmAll_'+d}, '—').outerHTML));
+    tbodyA.appendChild(tr);
+  });
+  tableA.appendChild(tbodyA);
+  const tfootA = el('tfoot');
+  const trfA = el('tr');
+  trfA.appendChild(el('td',{class:'left',colspan:'2'}, 'SUBTOTAL'));
+  trfA.appendChild(el('td',{}, el('span',{id:'dia_subPipeA'}, '0.00').outerHTML));
+  trfA.appendChild(el('td',{}, el('span',{id:'dia_subTotalA'}, '0.00').outerHTML));
+  trfA.appendChild(el('td',{},''));
+  trfA.appendChild(el('td',{},''));
+  tfootA.appendChild(trfA);
+  tableA.appendChild(tfootA);
+  wrapA.appendChild(tableA);
+  outer.appendChild(wrapA);
+
+  /* ---- Section B: diameters 250mm and above — split by category ---- */
+  outer.appendChild(buildDiaSectionTitle('Diameters 250 mm and above — split by category'));
+  const wrapB = el('div',{class:'table-wrap'});
+  const tableB = el('table',{id:'tbl_DiaSummaryB'});
+  const theadB = el('thead');
+  const trhB = el('tr');
+  ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Elbow 90 (EGP)','Elbow 45 (EGP)','Tee (EGP)',
+   'Other — Reducer+Bush+Weld+Solv+Valves (EGP)','Total — All Categories (EGP)'
+  ].forEach((h,i)=> trhB.appendChild(el('th',{class:i===0?'left':''}, h)));
+  theadB.appendChild(trhB);
+  tableB.appendChild(theadB);
+  const tbodyB = el('tbody');
+  diamsBig.forEach(d=>{
+    const tr = el('tr',{id:'diarow_'+d});
+    tr.appendChild(el('td',{class:'left'}, d+' mm'));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_len_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_pipecost_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_elbow90_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_elbow45_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_tee_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_other_'+d}, '0.00').outerHTML));
+    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'dia_totalB_'+d}, '0.00').outerHTML));
+    tbodyB.appendChild(tr);
+  });
+  tableB.appendChild(tbodyB);
+  const tfootB = el('tfoot');
+  const trfB = el('tr');
+  trfB.appendChild(el('td',{class:'left',colspan:'2'}, 'SUBTOTAL'));
+  trfB.appendChild(el('td',{}, el('span',{id:'dia_subPipeB'}, '0.00').outerHTML));
+  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandElbow90'}, '0.00').outerHTML));
+  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandElbow45'}, '0.00').outerHTML));
+  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandTee'}, '0.00').outerHTML));
+  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandOther'}, '0.00').outerHTML));
+  trfB.appendChild(el('td',{}, el('span',{id:'dia_subTotalB'}, '0.00').outerHTML));
+  tfootB.appendChild(trfB);
+  tableB.appendChild(tfootB);
+  wrapB.appendChild(tableB);
+  outer.appendChild(wrapB);
+
+  /* ---- Combined grand total banner ---- */
+  const grandBar = el('div',{class:'dia-grand-total'});
+  grandBar.appendChild(el('span',{class:'dia-grand-label'}, 'Grand Total — All Diameters Combined'));
+  grandBar.appendChild(el('span',{class:'dia-grand-value', id:'dia_grandCombined'}, '0.00 EGP'));
+  outer.appendChild(grandBar);
+
+  return outer;
+}
+
+/* ---------- tabs / panels (2-level: main group tab -> sub tabs) ---------- */
+const MAIN_TABS = [
+  {id:'Pipe',  label:'Pipe &amp; Fittings'},
+  {id:'Valve', label:'Valves &amp; Accessories'},
+  {id:'Global',label:'Diameter Summary'},
+];
+
+const LEAF_DEFS = {
+  Pipe: [
+    {id:'PriceList', label:'Price List'},
+    ...CATS.map(c=>({id:c, label:getCatLabel(c)})),
+    {id:'Weld', label:'Welding'},
+    {id:'Solv', label:'Solvent'},
+    {id:'Summary', label:'Summary'},
+  ],
+  Valve: [
+    {id:'VPriceList', label:'Price List'},
+    ...VALVE_CATS.map(c=>({id:c, label:getCatLabel(c)})),
+    {id:'VWeld', label:'Welding'},
+    {id:'VSolv', label:'Solvent'},
+    {id:'VSummary', label:'Summary'},
+  ],
+  Global: [
+    {id:'DiaSummary', label:'Diameter Summary'},
+  ],
+};
+
+function buildLeafPanel(mainId, leaf){
+  const panel = el('section',{id:'panel_'+leaf.id, class:'tab-panel'});
+  if(leaf.id!=='PriceList' && leaf.id!=='VPriceList'){
+    panel.appendChild(el('h3',{class:'print-heading'}, leaf.label));
+  }
+  if(leaf.id==='PriceList'){
+    panel.appendChild(toolbar('Price List'));
+    panel.appendChild(buildPriceListTable('Pipe'));
+  } else if(leaf.id==='VPriceList'){
+    panel.appendChild(toolbar('Price List'));
+    panel.appendChild(buildPriceListTable('Valve'));
+  } else if(CATS.includes(leaf.id)){
+    const hintText = leaf.id==='Pipe' ? 'Qty = Pipe Length in Meters ( m ).' : 'Qty = No of Fittings';
+    panel.appendChild(toolbar(hintText));
+    panel.appendChild(buildCatTable(leaf.id));
+  } else if(VALVE_CATS.includes(leaf.id)){
+    const hintText = leaf.id==='BallValve' ? 'Qty = No of Units' : 'Qty = No of Units';
+    panel.appendChild(toolbar(hintText));
+    panel.appendChild(buildCatTable(leaf.id));
+  } else if(leaf.id==='Weld'){
+    panel.appendChild(toolbar('(2 ends/Elbow, 3/Tee, 2/Reducer or Bush).'));
+    panel.appendChild(buildWSTable('Weld'));
+  } else if(leaf.id==='Solv'){
+    panel.appendChild(toolbar('Same joint count as Welding, at half the material rate per joint.'));
+    panel.appendChild(buildWSTable('Solv'));
+  } else if(leaf.id==='VWeld'){
+    panel.appendChild(toolbar('Joints from Ball Valve, Check Valve, Socket &amp; Puddle Flange (2 ends each).'));
+    panel.appendChild(buildWSTable('VWeld'));
+  } else if(leaf.id==='VSolv'){
+    panel.appendChild(toolbar('Same joint count as Valves Welding, at half the material rate per joint.'));
+    panel.appendChild(buildWSTable('VSolv'));
+  } else if(leaf.id==='Summary'){
+    panel.appendChild(buildSummaryTable('Pipe'));
+  } else if(leaf.id==='VSummary'){
+    panel.appendChild(buildSummaryTable('Valve'));
+  } else if(leaf.id==='DiaSummary'){
+    panel.appendChild(toolbar('Diameters below 250 mm: one combined Pipe+Fittings total (no valves). Diameters 250 mm and above: split by category (Elbow 90 / Elbow 45 / Tee / Other), including valves.'));
+    panel.appendChild(buildDiameterSummaryTable());
+  }
+  return panel;
+}
+
+function showLeafPanel(leafId){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  const panel = document.getElementById('panel_'+leafId);
+  if(panel) panel.classList.add('active');
+}
+
+function renderSubNav(mainId){
+  const subNav = document.getElementById('subTabsNav');
+  subNav.innerHTML = '';
+  const leaves = LEAF_DEFS[mainId];
+  if(leaves.length<=1){ subNav.style.display='none'; showLeafPanel(leaves[0].id); return; }
+  subNav.style.display='flex';
+  leaves.forEach((leaf,i)=>{
+    const btn = el('button',{class:'tab-btn sub'+(i===0?' active':''), 'data-tab':leaf.id}, '<span>'+leaf.label+'</span>');
+    btn.addEventListener('click', function(){
+      subNav.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      showLeafPanel(this.dataset.tab);
+    });
+    subNav.appendChild(btn);
+  });
+  showLeafPanel(leaves[0].id);
+}
+
+function initTabsAndPanels(){
+  const nav = document.getElementById('tabsNav');
+  const panels = document.getElementById('panels');
+  MAIN_TABS.forEach((m,i)=>{
+    const btn = el('button',{class:'tab-btn main'+(i===0?' active':''), 'data-tab':m.id}, '<span>'+m.label+'</span>');
+    btn.addEventListener('click', function(){
+      nav.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      renderSubNav(this.dataset.tab);
+    });
+    nav.appendChild(btn);
+    LEAF_DEFS[m.id].forEach(leaf=> panels.appendChild(buildLeafPanel(m.id, leaf)));
+  });
+  renderSubNav(MAIN_TABS[0].id);
+}
+
+/* ---------- recalc ---------- */
+function setText(id, text){ const e = document.getElementById(id); if(e) e.textContent = text; }
+
+function recalcGroup(cfg, totals){
+  cfg.cats.forEach(cat=>{
+    let catTotal = 0;
+    cfg.data.cats[cat].forEach(r=>{
+      const dry = Number(r.dry)||0;
+      const qty = Number(r.qty)||0;
+      const p = pricing(dry, qty);
+      if(cfg.solventFlatFee){
+        let boltsFee = 0;
+        const sizeNum = parseFloat(normSize(r.size));
+        if(!isNaN(sizeNum) && sizeNum>=cfg.solventFlatMinSize){
+          boltsFee = cfg.solventFlatFee*qty;
+          p.unitRate += cfg.solventFlatFee;
+          p.total = p.unitRate*qty;
+        }
+        setText('c_bolts_'+cat+'_'+r.orig_row, fmt(boltsFee));
+      }
+      setText('c_dry_'+cat+'_'+r.orig_row, fmt(dry));
+      setText('c_vat_'+cat+'_'+r.orig_row, fmt(p.vatAmt));
+      setText('c_inst_'+cat+'_'+r.orig_row, fmt(p.instAmt));
+      setText('c_concept_'+cat+'_'+r.orig_row, fmt(p.concept));
+      setText('c_prof_'+cat+'_'+r.orig_row, fmt(p.profAmt));
+      setText('c_rate_'+cat+'_'+r.orig_row, fmt(p.unitRate));
+      setText('c_total_'+cat+'_'+r.orig_row, fmt(p.total));
+      rowTotalMap[cat+'_'+r.orig_row] = p.total;
+      catTotal += p.total;
+    });
+    setText('tot_'+cat, fmt(catTotal));
+    totals[cat] = catTotal;
+  });
+
+  let weldTotal = 0;
+  const weldJoints = {};
+  cfg.data.weld.forEach(r=>{
+    const joints = jointCount(r);
+    weldJoints[r.orig_row] = joints;
+    const qpj = Number(r.qty_per_joint)||0;
+    const kgqty = (joints*qpj)/1000;
+    const dry = Number(r.dry)||0;
+    const p = pricing(dry, kgqty);
+    setText('c_joints_'+cfg.weldKind+'_'+r.orig_row, fmtInt(joints));
+    setText('c_kgqty_'+cfg.weldKind+'_'+r.orig_row, kgqty.toLocaleString(undefined,{minimumFractionDigits:3,maximumFractionDigits:3}));
+    setText('c_dry_'+cfg.weldKind+'_'+r.orig_row, fmt(dry));
+    setText('c_vat_'+cfg.weldKind+'_'+r.orig_row, fmt(p.vatAmt));
+    setText('c_inst_'+cfg.weldKind+'_'+r.orig_row, fmt(p.instAmt));
+    setText('c_concept_'+cfg.weldKind+'_'+r.orig_row, fmt(p.concept));
+    setText('c_prof_'+cfg.weldKind+'_'+r.orig_row, fmt(p.profAmt));
+    setText('c_rate_'+cfg.weldKind+'_'+r.orig_row, fmt(p.unitRate));
+    setText('c_total_'+cfg.weldKind+'_'+r.orig_row, fmt(p.total));
+    rowTotalMap[cfg.weldKind+'_'+r.orig_row] = p.total;
+    weldTotal += p.total;
+  });
+  setText('tot_'+cfg.weldKind, fmt(weldTotal));
+  totals[cfg.weldKind] = weldTotal;
+
+  let solvTotal = 0;
+  cfg.data.solv.forEach((r,idx)=>{
+    const wr = cfg.data.weld[idx];
+    const joints = weldJoints[wr.orig_row];
+    const qpj = (Number(wr.qty_per_joint)||0)/2;
+    const kgqty = (joints*qpj)/1000;
+    const dry = Number(r.dry)||0;
+    const p = pricing(dry, kgqty);
+    setText('qpj_'+cfg.solvKind+'_'+r.orig_row, qpj.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}));
+    setText('c_joints_'+cfg.solvKind+'_'+r.orig_row, fmtInt(joints));
+    setText('c_kgqty_'+cfg.solvKind+'_'+r.orig_row, kgqty.toLocaleString(undefined,{minimumFractionDigits:3,maximumFractionDigits:3}));
+    setText('c_dry_'+cfg.solvKind+'_'+r.orig_row, fmt(dry));
+    setText('c_vat_'+cfg.solvKind+'_'+r.orig_row, fmt(p.vatAmt));
+    setText('c_inst_'+cfg.solvKind+'_'+r.orig_row, fmt(p.instAmt));
+    setText('c_concept_'+cfg.solvKind+'_'+r.orig_row, fmt(p.concept));
+    setText('c_prof_'+cfg.solvKind+'_'+r.orig_row, fmt(p.profAmt));
+    setText('c_rate_'+cfg.solvKind+'_'+r.orig_row, fmt(p.unitRate));
+    setText('c_total_'+cfg.solvKind+'_'+r.orig_row, fmt(p.total));
+    rowTotalMap[cfg.solvKind+'_'+r.orig_row] = p.total;
+    solvTotal += p.total;
+  });
+  setText('tot_'+cfg.solvKind, fmt(solvTotal));
+  totals[cfg.solvKind] = solvTotal;
+
+  let grand = 0;
+  [...cfg.cats, cfg.weldKind, cfg.solvKind].forEach(k=>{ grand += totals[k]||0; setText('sum_'+k, fmt(totals[k]||0)); });
+  setText(cfg.grandId, fmt(grand));
+  return grand;
+}
+
+function recalcDiameterSummary(){
+  const diaLen = {}, diaPipeCost = {}, diaElbow90 = {}, diaElbow45 = {}, diaTee = {}, diaOtherPipeSide = {}, diaValves = {};
+  DIAMS.forEach(d=>{ diaLen[d]=0; diaPipeCost[d]=0; diaElbow90[d]=0; diaElbow45[d]=0; diaTee[d]=0; diaOtherPipeSide[d]=0; diaValves[d]=0; });
+
+  function accumulate(target, cat, rows){
+    rows.forEach(r=>{
+      const d = normSize(r.size);
+      if(target.hasOwnProperty(d)) target[d] += rowTotalMap[cat+'_'+r.orig_row]||0;
+    });
+  }
+  accumulate(diaPipeCost, 'Pipe', DATA.cats['Pipe']);
+  accumulate(diaElbow90, 'Elbow 90', DATA.cats['Elbow 90']);
+  accumulate(diaElbow45, 'Elbow 45', DATA.cats['Elbow 45']);
+  accumulate(diaTee, 'Tee', DATA.cats['Tee']);
+  accumulate(diaOtherPipeSide, 'Reducer', DATA.cats['Reducer']);
+  accumulate(diaOtherPipeSide, 'Bush', DATA.cats['Bush']);
+  accumulate(diaOtherPipeSide, 'Weld', DATA.weld);
+  accumulate(diaOtherPipeSide, 'Solv', DATA.solv);
+  VALVE_CATS.forEach(cat=> accumulate(diaValves, cat, VALVE_DATA.cats[cat]));
+  accumulate(diaValves, 'VWeld', VALVE_DATA.weld);
+  accumulate(diaValves, 'VSolv', VALVE_DATA.solv);
+
+  DATA.cats['Pipe'].forEach(r=>{
+    const d = normSize(r.size);
+    if(diaLen.hasOwnProperty(d)) diaLen[d] += Number(r.qty)||0;
+  });
+
+  let grandPipeDia=0, grandElbow90=0, grandElbow45=0, grandTee=0, grandOther=0;
+  let subPipeA=0, subTotalA=0, subPipeB=0, subTotalB=0;
+  DIAMS.forEach(d=>{
+    const len = diaLen[d]||0;
+    const pipeCost = diaPipeCost[d]||0;
+    const isSplit = Number(d) >= DIA_SPLIT_MIN;
+    setText('dia_len_'+d, fmt(len));
+    setText('dia_pipecost_'+d, fmt(pipeCost));
+    grandPipeDia += pipeCost;
+
+    if(isSplit){
+      const e90 = diaElbow90[d]||0, e45 = diaElbow45[d]||0, tee = diaTee[d]||0;
+      const other = (diaOtherPipeSide[d]||0) + (diaValves[d]||0);
+      const totalB = pipeCost + e90 + e45 + tee + other;
+      setText('dia_elbow90_'+d, fmt(e90));
+      setText('dia_elbow45_'+d, fmt(e45));
+      setText('dia_tee_'+d, fmt(tee));
+      setText('dia_other_'+d, fmt(other));
+      setText('dia_totalB_'+d, fmt(totalB));
+      grandElbow90 += e90; grandElbow45 += e45; grandTee += tee; grandOther += other;
+      subPipeB += pipeCost; subTotalB += totalB;
+    } else {
+      const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0);
+      setText('dia_cost_'+d, fmt(combined));
+      setText('dia_cpmPipe_'+d, len>0 ? fmt(pipeCost/len) : '—');
+      setText('dia_cpmAll_'+d, len>0 ? fmt(combined/len) : '—');
+      subPipeA += pipeCost; subTotalA += combined;
+    }
+  });
+  setText('dia_subPipeA', fmt(subPipeA));
+  setText('dia_subTotalA', fmt(subTotalA));
+  setText('dia_subPipeB', fmt(subPipeB));
+  setText('dia_grandElbow90', fmt(grandElbow90));
+  setText('dia_grandElbow45', fmt(grandElbow45));
+  setText('dia_grandTee', fmt(grandTee));
+  setText('dia_grandOther', fmt(grandOther));
+  setText('dia_subTotalB', fmt(subTotalB));
+  setText('dia_grandCombined', fmt(subTotalA + subTotalB) + ' EGP');
+}
+
+const SOCKET_MIN_DIAM = 90;
+
+function syncSocketFlangeQty(){
+  const bySize = {};
+  DIAMS.forEach(d=>{ bySize[d] = {butterfly:0, gear:0, check:0, flex:0}; });
+  (VALVE_DATA.cats['ButterflyValve']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].butterfly = Number(r.qty)||0; });
+  (VALVE_DATA.cats['GearValve']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].gear = Number(r.qty)||0; });
+  (VALVE_DATA.cats['CheckValve']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].check = Number(r.qty)||0; });
+  (VALVE_DATA.cats['FlexibleConnection']||[]).forEach(r=>{ const d=normSize(r.size); if(bySize[d]) bySize[d].flex = Number(r.qty)||0; });
+
+  const socketQtyBySize = {};
+  (VALVE_DATA.cats['Socket']||[]).forEach(r=>{
+    const d = normSize(r.size);
+    const b = bySize[d] || {butterfly:0,gear:0,check:0,flex:0};
+    const qty = (Number(d) >= SOCKET_MIN_DIAM) ? (2*(b.butterfly+b.gear+b.check) + 2*b.flex) : 0;
+    r.qty = qty;
+    socketQtyBySize[d] = qty;
+    const inp = document.getElementById('q_Socket_'+r.orig_row);
+    if(inp) inp.value = qty;
+  });
+  (VALVE_DATA.cats['Flanges']||[]).forEach(r=>{
+    const d = normSize(r.size);
+    const qty = socketQtyBySize.hasOwnProperty(d) ? socketQtyBySize[d] : 0;
+    r.qty = qty;
+    const inp = document.getElementById('q_Flanges_'+r.orig_row);
+    if(inp) inp.value = qty;
+  });
+}
+
+function recalcAll(){
+  syncSocketFlangeQty();
+  const totals = {};
+  const pipeGrand = recalcGroup(GROUP_CFG.Pipe, totals);
+  const valveGrand = recalcGroup(GROUP_CFG.Valve, totals);
+  const grand = pipeGrand + valveGrand;
+
+  recalcDiameterSummary();
+  renderSummaryBar(totals, grand);
+  scheduleAutosave();
+}
+
+function renderSummaryBar(totals, grand){
+  const bar = document.getElementById('summaryBar');
+  bar.innerHTML = '';
+  const pipeFittings = CATS.reduce((s,c)=>s+(totals[c]||0),0);
+  const valveFittings = VALVE_CATS.reduce((s,c)=>s+(totals[c]||0),0);
+  const weldSolv = (totals['Weld']||0)+(totals['Solv']||0)+(totals['VWeld']||0)+(totals['VSolv']||0);
+  const cards = [
+    {label:'Pipe &amp; Fittings Subtotal', value: pipeFittings},
+    {label:'Valves &amp; Accessories Subtotal', value: valveFittings},
+    {label:'Welding &amp; Solvent Subtotal', value: weldSolv},
+    {label:'Grand Total', value: grand, grand:true},
+  ];
+  cards.forEach(c=>{
+    const card = el('div',{class:'summary-card'+(c.grand?' grand':'')});
+    const txt = el('div');
+    txt.appendChild(el('div',{class:'label'}, c.label));
+    txt.appendChild(el('div',{class:'value'}, fmt(c.value)+' EGP'));
+    card.appendChild(txt);
+    bar.appendChild(card);
+  });
+}
+
+/* ---------- styled Excel export (ExcelJS) ---------- */
+const CLR = {
+  navy:'FF0A1B33', navyLight:'FF1C3A63', amber:'FFDFA355', amberDark:'FFC4863A',
+  white:'FFFFFFFF', rowAlt:'FFF7F9FC', totalFill:'FFFBF3E7', border:'FFDDE2EA', teal:'FF2AA9A0'
+};
+
+function styleTitleRow(ws, rowNum, span){
+  ws.mergeCells(rowNum,1,rowNum,span);
+  const cell = ws.getCell(rowNum,1);
+  cell.font = {bold:true, size:14, color:{argb:CLR.white}};
+  cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.navy}};
+  cell.alignment = {vertical:'middle', horizontal:'center'};
+  ws.getRow(rowNum).height = 28;
+}
+function styleHeaderRow(ws, rowNum, span){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.font = {bold:true, size:10.5, color:{argb:CLR.white}};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.navyLight}};
+    cell.alignment = {vertical:'middle', horizontal:'center', wrapText:true};
+    cell.border = {bottom:{style:'thin', color:{argb:CLR.border}}};
+  }
+  ws.getRow(rowNum).height = 26;
+}
+function styleSectionRow(ws, rowNum, span, text){
+  ws.mergeCells(rowNum,1,rowNum,span);
+  const cell = ws.getCell(rowNum,1);
+  cell.value = text;
+  cell.font = {bold:true, size:10.5, color:{argb:CLR.navy}};
+  cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.amber}};
+  cell.alignment = {vertical:'middle', horizontal:'left', indent:1};
+}
+function styleDataRow(ws, rowNum, span, alt){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.border = {bottom:{style:'hair', color:{argb:CLR.border}}};
+    if(alt) cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.rowAlt}};
+    cell.alignment = {vertical:'middle', horizontal: c<=3?'left':'center'};
+  }
+}
+function styleTotalRow(ws, rowNum, span){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.font = {bold:true, color:{argb:CLR.navy}};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.totalFill}};
+    cell.border = {top:{style:'medium', color:{argb:CLR.amber}}};
+  }
+}
+function colLetter(n){
+  let s='';
+  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+
+function computeGroupTotals(cfg){
+  const rowTotal = {}, catTotals = {};
+  cfg.cats.forEach(cat=>{
+    let t=0;
+    cfg.data.cats[cat].forEach(row=>{
+      const p = pricing(Number(row.dry)||0, Number(row.qty)||0);
+      let total = p.total;
+      if(cfg.solventFlatFee){
+        const sizeNum = parseFloat(normSize(row.size));
+        if(!isNaN(sizeNum) && sizeNum>=cfg.solventFlatMinSize){
+          total += cfg.solventFlatFee*(Number(row.qty)||0);
+        }
+      }
+      rowTotal[cat+'_'+row.orig_row] = total;
+      t += total;
+    });
+    catTotals[cat]=t;
+  });
+  let weldTotal=0;
+  const weldJoints = {};
+  cfg.data.weld.forEach(row=>{
+    const joints=jointCount(row);
+    weldJoints[row.orig_row]=joints;
+    const kgqty=(joints*(Number(row.qty_per_joint)||0))/1000;
+    const total = pricing(Number(row.dry)||0, kgqty).total;
+    rowTotal[cfg.weldKind+'_'+row.orig_row] = total;
+    weldTotal += total;
+  });
+  let solvTotal=0;
+  cfg.data.solv.forEach((row,idx)=>{
+    const wr=cfg.data.weld[idx];
+    const joints=weldJoints[wr.orig_row];
+    const qpj=(Number(wr.qty_per_joint)||0)/2;
+    const kgqty=(joints*qpj)/1000;
+    const total = pricing(Number(row.dry)||0, kgqty).total;
+    rowTotal[cfg.solvKind+'_'+row.orig_row] = total;
+    solvTotal += total;
+  });
+  return {rowTotal, catTotals, weldTotal, solvTotal};
+}
+
+async function exportExcel(){
+  if(typeof ExcelJS === 'undefined'){ alert('Export library did not load. Check your internet connection.'); return; }
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Pipe Cost Engine';
+  wb.created = new Date();
+
+  /* ---- Assumptions sheet — every pricing formula below reads from here ---- */
+  const wsA = wb.addWorksheet('Assumptions', {properties:{tabColor:{argb:CLR.teal}}});
+  wsA.columns = [{width:30},{width:16},{width:44}];
+  styleTitleRow(wsA, 1, 3);
+  wsA.getCell(1,1).value = 'PRICING ASSUMPTIONS — edit these, everything recalculates';
+  wsA.getRow(2).values = ['Assumption','Value','Notes'];
+  styleHeaderRow(wsA, 2, 3);
+  const assumpRows = [
+    ['VAT %', assump.vat, 'Applied to Dry cost'],
+    ['Installation & Transport %', assump.inst, 'Applied to Dry cost'],
+    ['Profit %', assump.prof, 'Applied to Concept cost'],
+    ['Bolts Flat Fee (EGP)', GROUP_CFG.Valve.solventFlatFee, 'Added per unit for valves at/above the min size below'],
+    ['Bolts Min Size (mm)', GROUP_CFG.Valve.solventFlatMinSize, 'Threshold that triggers the bolts fee'],
+  ];
+  assumpRows.forEach((rowVals, i)=>{
+    const rr = i+3;
+    wsA.getRow(rr).values = rowVals;
+    if(i<3) wsA.getCell(rr,2).numFmt = '0.00%';
+    styleDataRow(wsA, rr, 3, i%2===1);
+  });
+  wsA.views = [{state:'frozen', ySplit:2}];
+  const AS = {vat:'Assumptions!$B$3', inst:'Assumptions!$B$4', prof:'Assumptions!$B$5', boltsFee:'Assumptions!$B$6', boltsMin:'Assumptions!$B$7'};
+
+  /* ---- Price List sheets (Pipe + Valves) ---- */
+  const plCols = [{header:'Item',width:18},{header:'Size',width:12},{header:'Unit',width:9},{header:'Dry Cost (EGP)',width:18}];
+  function buildPriceListSheet(sheetName, title, cfg){
+    const ws = wb.addWorksheet(sheetName, {properties:{tabColor:{argb:CLR.amber}}});
+    ws.columns = plCols.map(c=>({width:c.width}));
+    styleTitleRow(ws, 1, 4);
+    ws.getCell(1,1).value = title;
+    let r = 2;
+    ws.getRow(r).values = plCols.map(c=>c.header);
+    styleHeaderRow(ws, r, 4);
+    r++;
+    let alt=false;
+    function plSection(t2){ styleSectionRow(ws, r, 4, t2); r++; alt=false; }
+    function plRow(item, size, unit, dry){
+      ws.getRow(r).values = [item, size, unit, dry];
+      ws.getCell(r,4).numFmt = '#,##0.00';
+      styleDataRow(ws, r, 4, alt);
+      alt = !alt; r++;
+    }
+    cfg.cats.forEach(cat=>{ plSection(getCatLabel(cat)); cfg.data.cats[cat].forEach(row=> plRow(row.item||getCatLabel(cat), row.size, row.unit, row.dry)); });
+    plSection('Welding (rod / fusion material)');
+    cfg.data.weld.forEach(row=> plRow('Welding', row.size, 'kg', row.dry));
+    plSection('Solvent Cement');
+    cfg.data.solv.forEach(row=> plRow('Solvent', row.size, 'kg', row.dry));
+    ws.views = [{state:'frozen', ySplit:2}];
+  }
+  buildPriceListSheet('Price List', 'MASTER PRICE LIST — Pipe & Fittings', GROUP_CFG.Pipe);
+  buildPriceListSheet('Valve Price List', 'MASTER PRICE LIST — Valves & Accessories', GROUP_CFG.Valve);
+
+  /* ---- Category sheets (Pipe + Valves) ---- */
+  const catHeaders = ['Item','Size','Unit','Qty','Dry cost','Vat','Install & Transport','Concept cost','Profit','Unit rate','Total price'];
+  const catWidths = [16,12,8,9,12,10,16,13,10,12,14];
+  const catHeadersBolts = ['Item','Size','Unit','Qty','Dry cost','Vat','Install & Transport','Concept cost','Profit','Unit rate','Bolts','Total price'];
+  const catWidthsBolts = [16,12,8,9,12,10,16,13,10,12,12,14];
+  function buildCatSheet(cat, cfg){
+    const hasBolts = !!cfg.solventFlatFee;
+    const headers = hasBolts ? catHeadersBolts : catHeaders;
+    const widths = hasBolts ? catWidthsBolts : catWidths;
+    const lastCol = headers.length;
+    const filledRows = cfg.data.cats[cat].map(row=>{
+      const p = pricing(Number(row.dry)||0, Number(row.qty)||0);
+      let boltsFee = 0;
+      if(hasBolts){
+        const sizeNum = parseFloat(normSize(row.size));
+        if(!isNaN(sizeNum) && sizeNum>=cfg.solventFlatMinSize){
+          boltsFee = cfg.solventFlatFee*(Number(row.qty)||0);
+          p.unitRate += cfg.solventFlatFee;
+          p.total = p.unitRate*(Number(row.qty)||0);
+        }
+      }
+      return {row, p, boltsFee};
+    }).filter(x=> Math.abs(x.p.total) >= 0.005);
+    if(!filledRows.length) return;
+    const ws = wb.addWorksheet(getCatLabel(cat).slice(0,31), {properties:{tabColor:{argb:CLR.navyLight}}});
+    ws.columns = widths.map(w=>({width:w}));
+    styleTitleRow(ws, 1, lastCol);
+    ws.getCell(1,1).value = getCatLabel(cat).toUpperCase() + ' — Quantities & Pricing';
+    ws.getRow(2).values = headers;
+    styleHeaderRow(ws, 2, lastCol);
+    let rr = 3, a=false, total=0;
+    filledRows.forEach(({row,p,boltsFee})=>{
+      ws.getRow(rr).values = [row.item||'', row.size, row.unit, row.qty, row.dry];
+      ws.getCell(rr,6).value = {formula:`E${rr}*${AS.vat}`};
+      ws.getCell(rr,7).value = {formula:`E${rr}*${AS.inst}`};
+      ws.getCell(rr,8).value = {formula:`E${rr}+F${rr}+G${rr}`};
+      ws.getCell(rr,9).value = {formula:`H${rr}*${AS.prof}`};
+      if(hasBolts){
+        const boltsCond = `VALUE(TRIM(SUBSTITUTE(B${rr},"mm","")))>=${AS.boltsMin}`;
+        ws.getCell(rr,10).value = {formula:`H${rr}+I${rr}+IF(${boltsCond},${AS.boltsFee},0)`};
+        ws.getCell(rr,11).value = {formula:`IF(${boltsCond},${AS.boltsFee}*D${rr},0)`};
+        ws.getCell(rr,12).value = {formula:`J${rr}*D${rr}`};
+      } else {
+        ws.getCell(rr,10).value = {formula:`H${rr}+I${rr}`};
+        ws.getCell(rr,11).value = {formula:`J${rr}*D${rr}`};
+      }
+      const numFmtCols = hasBolts ? [5,6,7,8,9,10,11,12] : [5,6,7,8,9,10,11];
+      for(const c of numFmtCols) ws.getCell(rr,c).numFmt = '#,##0.00';
+      styleDataRow(ws, rr, lastCol, a);
+      a = !a; total += p.total; rr++;
+    });
+    ws.getCell(rr,lastCol-1).value = 'TOTAL';
+    ws.getCell(rr,lastCol).value = {formula:`SUM(${colLetter(lastCol)}3:${colLetter(lastCol)}${rr-1})`};
+    ws.getCell(rr,lastCol).numFmt = '#,##0.00';
+    styleTotalRow(ws, rr, lastCol);
+    ws.views = [{state:'frozen', ySplit:2}];
+  }
+  CATS.forEach(cat=> buildCatSheet(cat, GROUP_CFG.Pipe));
+  VALVE_CATS.forEach(cat=> buildCatSheet(cat, GROUP_CFG.Valve));
+
+  /* ---- Welding / Solvent sheets (Pipe + Valves) ---- */
+  const wsHeaders = ['Size','Qty per Joint (g)','Qty (kg)','N.o Joints','Dry cost','Vat','Install & Transport','Concept cost','Profit','Unit rate','Total price'];
+  const wsWidths = [10,15,10,10,10,9,16,13,9,12,14];
+
+  function buildWSSheet(name, rows, weldRowsForPairing, isWeld){
+    const computed = rows.map((row, idx)=>{
+      let joints, qpj;
+      if(isWeld){ joints = jointCount(row); qpj = Number(row.qty_per_joint)||0; }
+      else { const wr = weldRowsForPairing[idx]; joints = jointCount(wr); qpj = (Number(wr.qty_per_joint)||0)/2; }
+      const kgqty = (joints*qpj)/1000;
+      const p = pricing(Number(row.dry)||0, kgqty);
+      return {row, joints, qpj, kgqty, p};
+    }).filter(x=> Math.abs(x.p.total) >= 0.005);
+    if(!computed.length) return;
+    const ws = wb.addWorksheet(name, {properties:{tabColor:{argb: isWeld?'FFC1453C':CLR.teal}}});
+    ws.columns = wsWidths.map(w=>({width:w}));
+    styleTitleRow(ws, 1, 11);
+    ws.getCell(1,1).value = name.toUpperCase() + (isWeld ? ' (WELDON) — Fusion Joints & Pricing' : ' — Joints & Pricing');
+    ws.getRow(2).values = wsHeaders;
+    styleHeaderRow(ws, 2, 11);
+    let rr = 3, a=false, total=0;
+    computed.forEach(({row,joints,qpj,kgqty,p})=>{
+      ws.getRow(rr).values = [row.size, round2(qpj), round2(kgqty), joints, row.dry];
+      ws.getCell(rr,6).value = {formula:`E${rr}*${AS.vat}`};
+      ws.getCell(rr,7).value = {formula:`E${rr}*${AS.inst}`};
+      ws.getCell(rr,8).value = {formula:`E${rr}+F${rr}+G${rr}`};
+      ws.getCell(rr,9).value = {formula:`H${rr}*${AS.prof}`};
+      ws.getCell(rr,10).value = {formula:`H${rr}+I${rr}`};
+      ws.getCell(rr,11).value = {formula:`J${rr}*C${rr}`};
+      for(const c of [5,6,7,8,9,10,11]) ws.getCell(rr,c).numFmt = '#,##0.00';
+      styleDataRow(ws, rr, 11, a);
+      a = !a; total += p.total; rr++;
+    });
+    ws.getCell(rr,10).value = 'TOTAL';
+    ws.getCell(rr,11).value = {formula:`SUM(K3:K${rr-1})`};
+    ws.getCell(rr,11).numFmt = '#,##0.00';
+    styleTotalRow(ws, rr, 11);
+    ws.views = [{state:'frozen', ySplit:2}];
+  }
+  buildWSSheet('Welding', DATA.weld, null, true);
+  buildWSSheet('Solvent', DATA.solv, DATA.weld, false);
+  buildWSSheet('Valves Welding', VALVE_DATA.weld, null, true);
+  buildWSSheet('Valves Solvent', VALVE_DATA.solv, VALVE_DATA.weld, false);
+
+  /* ---- Summary sheet (Pipe + Valves combined) ---- */
+  const pipeCalc = computeGroupTotals(GROUP_CFG.Pipe);
+  const valveCalc = computeGroupTotals(GROUP_CFG.Valve);
+  const wsS = wb.addWorksheet('Summary', {properties:{tabColor:{argb:CLR.amberDark}}});
+  wsS.columns = [{width:28},{width:20}];
+  styleTitleRow(wsS, 1, 2);
+  wsS.getCell(1,1).value = 'SUMMARY — Total Costs by Category';
+  wsS.getRow(2).values = ['Category','Total Price (EGP)'];
+  styleHeaderRow(wsS, 2, 2);
+  let rr = 3, grand = 0, a=false;
+  function summarySection(title){ styleSectionRow(wsS, rr, 2, title); rr++; a=false; }
+  function summaryRow(name, val){
+    wsS.getRow(rr).values = [name, round2(val)];
+    wsS.getCell(rr,2).numFmt = '#,##0.00';
+    styleDataRow(wsS, rr, 2, a);
+    a = !a; grand += val; rr++;
+  }
+  const pipeRows = CATS.map(cat=>[getCatLabel(cat), pipeCalc.catTotals[cat]])
+    .concat([['Welding', pipeCalc.weldTotal],['Solvent', pipeCalc.solvTotal]])
+    .filter(([,v])=> Math.abs(v)>=0.005);
+  if(pipeRows.length){ summarySection('PIPE & FITTINGS'); pipeRows.forEach(([n,v])=> summaryRow(n,v)); }
+  const valveRows = VALVE_CATS.map(cat=>[getCatLabel(cat), valveCalc.catTotals[cat]])
+    .concat([['Valves Welding', valveCalc.weldTotal],['Valves Solvent', valveCalc.solvTotal]])
+    .filter(([,v])=> Math.abs(v)>=0.005);
+  if(valveRows.length){ summarySection('VALVES & ACCESSORIES'); valveRows.forEach(([n,v])=> summaryRow(n,v)); }
+  wsS.getCell(rr,1).value = 'GRAND TOTAL';
+  wsS.getCell(rr,2).value = round2(grand);
+  wsS.getCell(rr,2).numFmt = '#,##0.00';
+  styleTotalRow(wsS, rr, 2);
+  wsS.getCell(rr,1).font = {bold:true, size:12, color:{argb:CLR.navy}};
+  wsS.getCell(rr,2).font = {bold:true, size:12, color:{argb:CLR.navy}};
+
+  /* ---- Diameter Summary sheet ---- */
+  const wsD = wb.addWorksheet('Diameter Summary', {properties:{tabColor:{argb:CLR.teal}}});
+  wsD.columns = [{width:14},{width:18},{width:18},{width:20},{width:20},{width:18},{width:30},{width:22}];
+  const diaPipeCost = {}, diaElbow90 = {}, diaElbow45 = {}, diaTee = {}, diaOtherPipeSide = {}, diaValves = {}, diaLen = {};
+  DIAMS.forEach(d=>{ diaPipeCost[d]=0; diaElbow90[d]=0; diaElbow45[d]=0; diaTee[d]=0; diaOtherPipeSide[d]=0; diaValves[d]=0; diaLen[d]=0; });
+  function diaAccumulate(target, rowTotalSrc, cat, rows){
+    rows.forEach(row=>{
+      const d = normSize(row.size);
+      if(target.hasOwnProperty(d)) target[d] += rowTotalSrc[cat+'_'+row.orig_row]||0;
+    });
+  }
+  diaAccumulate(diaPipeCost, pipeCalc.rowTotal, 'Pipe', DATA.cats['Pipe']);
+  diaAccumulate(diaElbow90, pipeCalc.rowTotal, 'Elbow 90', DATA.cats['Elbow 90']);
+  diaAccumulate(diaElbow45, pipeCalc.rowTotal, 'Elbow 45', DATA.cats['Elbow 45']);
+  diaAccumulate(diaTee, pipeCalc.rowTotal, 'Tee', DATA.cats['Tee']);
+  diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, 'Reducer', DATA.cats['Reducer']);
+  diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, 'Bush', DATA.cats['Bush']);
+  diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, GROUP_CFG.Pipe.weldKind, DATA.weld);
+  diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, GROUP_CFG.Pipe.solvKind, DATA.solv);
+  VALVE_CATS.forEach(cat=> diaAccumulate(diaValves, valveCalc.rowTotal, cat, VALVE_DATA.cats[cat]));
+  diaAccumulate(diaValves, valveCalc.rowTotal, GROUP_CFG.Valve.weldKind, VALVE_DATA.weld);
+  diaAccumulate(diaValves, valveCalc.rowTotal, GROUP_CFG.Valve.solvKind, VALVE_DATA.solv);
+  DATA.cats['Pipe'].forEach(row=>{
+    const d = normSize(row.size);
+    if(diaLen.hasOwnProperty(d)) diaLen[d] += Number(row.qty)||0;
+  });
+
+  const diamsSmall = DIAMS.filter(d=> d < DIA_SPLIT_MIN);
+  const diamsBig = DIAMS.filter(d=> d >= DIA_SPLIT_MIN);
+  let rrD = 1;
+
+  /* Section A */
+  styleTitleRow(wsD, rrD, 6);
+  wsD.getCell(rrD,1).value = 'DIAMETERS BELOW 250 MM — COMBINED PIPE + FITTINGS (NO VALVES)';
+  rrD++;
+  wsD.getRow(rrD).values = ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Total Cost — Pipe+Fittings (EGP)','Cost/Meter — Pipe only (EGP/m)','Cost/Meter — Pipe+Fittings (EGP/m)'];
+  styleHeaderRow(wsD, rrD, 6);
+  rrD++;
+  let aRow=false, subPipeA=0, subTotalA=0;
+  diamsSmall.forEach(d=>{
+    const len = diaLen[d]||0, pipeCost = diaPipeCost[d]||0;
+    const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0);
+    if(Math.abs(len) < 0.005 && Math.abs(combined) < 0.005) return;
+    const cpmPipe = len>0 ? pipeCost/len : null, cpmAll = len>0 ? combined/len : null;
+    wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(combined), cpmPipe!==null?round2(cpmPipe):'—', cpmAll!==null?round2(cpmAll):'—'];
+    for(const c of [2,3,4]) wsD.getCell(rrD,c).numFmt = '#,##0.00';
+    if(cpmPipe!==null) wsD.getCell(rrD,5).numFmt = '#,##0.00';
+    if(cpmAll!==null) wsD.getCell(rrD,6).numFmt = '#,##0.00';
+    styleDataRow(wsD, rrD, 6, aRow);
+    aRow = !aRow; subPipeA += pipeCost; subTotalA += combined; rrD++;
+  });
+  wsD.getCell(rrD,1).value = 'SUBTOTAL';
+  wsD.getCell(rrD,3).value = round2(subPipeA); wsD.getCell(rrD,3).numFmt = '#,##0.00';
+  wsD.getCell(rrD,4).value = round2(subTotalA); wsD.getCell(rrD,4).numFmt = '#,##0.00';
+  styleTotalRow(wsD, rrD, 6);
+  rrD += 2;
+
+  /* Section B */
+  styleTitleRow(wsD, rrD, 8);
+  wsD.getCell(rrD,1).value = 'DIAMETERS 250 MM AND ABOVE — SPLIT BY CATEGORY';
+  rrD++;
+  wsD.getRow(rrD).values = ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Elbow 90 (EGP)','Elbow 45 (EGP)','Tee (EGP)','Other — Reducer+Bush+Weld+Solv+Valves (EGP)','Total — All Categories (EGP)'];
+  styleHeaderRow(wsD, rrD, 8);
+  rrD++;
+  let bRow=false, subPipeB=0, grandE90=0, grandE45=0, grandTee=0, grandOther=0, subTotalB=0;
+  diamsBig.forEach(d=>{
+    const len = diaLen[d]||0, pipeCost = diaPipeCost[d]||0;
+    const e90 = diaElbow90[d]||0, e45 = diaElbow45[d]||0, tee = diaTee[d]||0;
+    const other = (diaOtherPipeSide[d]||0) + (diaValves[d]||0);
+    const total = pipeCost + e90 + e45 + tee + other;
+    if(Math.abs(len) < 0.005 && Math.abs(total) < 0.005) return;
+    wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(e90), round2(e45), round2(tee), round2(other), round2(total)];
+    for(const c of [2,3,4,5,6,7,8]) wsD.getCell(rrD,c).numFmt = '#,##0.00';
+    styleDataRow(wsD, rrD, 8, bRow);
+    bRow = !bRow; subPipeB += pipeCost; grandE90 += e90; grandE45 += e45; grandTee += tee; grandOther += other; subTotalB += total; rrD++;
+  });
+  wsD.getCell(rrD,1).value = 'SUBTOTAL';
+  wsD.getCell(rrD,3).value = round2(subPipeB); wsD.getCell(rrD,3).numFmt = '#,##0.00';
+  wsD.getCell(rrD,4).value = round2(grandE90); wsD.getCell(rrD,4).numFmt = '#,##0.00';
+  wsD.getCell(rrD,5).value = round2(grandE45); wsD.getCell(rrD,5).numFmt = '#,##0.00';
+  wsD.getCell(rrD,6).value = round2(grandTee); wsD.getCell(rrD,6).numFmt = '#,##0.00';
+  wsD.getCell(rrD,7).value = round2(grandOther); wsD.getCell(rrD,7).numFmt = '#,##0.00';
+  wsD.getCell(rrD,8).value = round2(subTotalB); wsD.getCell(rrD,8).numFmt = '#,##0.00';
+  styleTotalRow(wsD, rrD, 8);
+  rrD += 2;
+
+  /* Combined grand total */
+  wsD.getCell(rrD,1).value = 'GRAND TOTAL — ALL DIAMETERS COMBINED';
+  wsD.getCell(rrD,1).font = {bold:true, size:12};
+  wsD.getCell(rrD,4).value = round2(subTotalA + subTotalB);
+  wsD.getCell(rrD,4).numFmt = '#,##0.00';
+  wsD.getCell(rrD,4).font = {bold:true, size:12};
+  wsD.views = [{state:'frozen', ySplit:0}];
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const linkEl = document.createElement('a');
+  linkEl.href = url; linkEl.download = 'Pipe_Valve_Costing.xlsx';
+  document.body.appendChild(linkEl); linkEl.click(); document.body.removeChild(linkEl);
+  URL.revokeObjectURL(url);
+}
+
+/* Print: hide empty rows/tabs that have no values */
+function markEmptyForPrint(){
+  document.querySelectorAll('.tab-panel').forEach(function(panel){
+    if(panel.id === 'panel_PriceList' || panel.id === 'panel_VPriceList') return; // already hidden entirely via CSS
+    var rows = panel.querySelectorAll('tbody tr');
+    var anyVisible = false;
+    rows.forEach(function(tr){
+      tr.classList.remove('print-hide-row');
+      if(tr.classList.contains('section-row')) return; // section headers (only appear in Price List)
+      var totalEl = tr.querySelector('[id^="c_total_"], [id^="sum_"], [id^="dia_cost_"], [id^="dia_totalB_"]');
+      var val = totalEl ? (parseFloat((totalEl.textContent||'0').replace(/,/g,'')) || 0) : null;
+      if(val !== null){
+        if(Math.abs(val) < 0.005){
+          tr.classList.add('print-hide-row');
+        } else {
+          anyVisible = true;
+        }
+      } else {
+        anyVisible = true; // no total column to measure against - keep visible as a fallback
+      }
+    });
+    panel.classList.toggle('print-hide-panel', rows.length > 0 && !anyVisible);
+  });
+}
+window.addEventListener('beforeprint', markEmptyForPrint);
+
+function printDoc(){
+  markEmptyForPrint();
+  window.print();
+}
+
+function brandMarkSvg(){
+  return '<svg width="46" height="46" viewBox="0 0 46 46">'+
+    '<circle cx="23" cy="23" r="20" fill="none" stroke="#ffffff" stroke-width="2.5" opacity=".85"/>'+
+    '<circle cx="23" cy="23" r="12" fill="none" stroke="#E3B57A" stroke-width="3"/>'+
+    '<circle cx="23" cy="23" r="4" fill="#E3B57A"/>'+
+  '</svg>';
+}
+
+function init(){
+  var bm = document.getElementById('brandMark'); if(bm) bm.innerHTML = brandMarkSvg();
+  document.getElementById('vatInput').value = round2(assump.vat*100);
+  document.getElementById('instInput').value = round2(assump.inst*100);
+  document.getElementById('profInput').value = round2(assump.prof*100);
+  document.getElementById('vatInput').addEventListener('input', function(){ assump.vat = (Number(this.value)||0)/100; saveDryPrices(); recalcAll(); });
+  document.getElementById('instInput').addEventListener('input', function(){ assump.inst = (Number(this.value)||0)/100; saveDryPrices(); recalcAll(); });
+  document.getElementById('profInput').addEventListener('input', function(){ assump.prof = (Number(this.value)||0)/100; saveDryPrices(); recalcAll(); });
+  const resetBtn = document.getElementById('resetPricesBtn');
+  if(resetBtn) resetBtn.addEventListener('click', resetSavedPrices);
+  const resetQtyBtn = document.getElementById('resetQtyBtn');
+  if(resetQtyBtn) resetQtyBtn.addEventListener('click', resetAllQuantities);
+
+  const saveProjectBtn = document.getElementById('saveProjectBtn');
+  if(saveProjectBtn) saveProjectBtn.addEventListener('click', function(){
+    const name = prompt('Enter a name for this calculation (saves all current quantities and prices):', 'Project - ' + new Date().toLocaleDateString());
+    if(name && name.trim()){
+      const ok = saveProjectAs(name.trim());
+      alert(ok ? 'Calculation saved as: '+name.trim() : 'There was a problem saving. Please try again.');
+    }
+  });
+
+  const openSavedBtn = document.getElementById('openSavedBtn');
+  const savedModalOverlay = document.getElementById('savedModalOverlay');
+  const savedModalCloseBtn = document.getElementById('savedModalCloseBtn');
+  if(openSavedBtn) openSavedBtn.addEventListener('click', function(){
+    renderSavedProjectsList();
+    savedModalOverlay.classList.add('open');
+  });
+  if(savedModalCloseBtn) savedModalCloseBtn.addEventListener('click', function(){
+    savedModalOverlay.classList.remove('open');
+  });
+  if(savedModalOverlay) savedModalOverlay.addEventListener('click', function(e){
+    if(e.target === savedModalOverlay) savedModalOverlay.classList.remove('open');
+  });
+
+  initTabsAndPanels();
+  recalcAll();
+  offerAutosaveRestore();
+
+  document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+  document.getElementById('printBtn').addEventListener('click', printDoc);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
