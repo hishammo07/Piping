@@ -248,17 +248,6 @@
     display:none !important;
   }
 
-  table.ws-table thead th:nth-child(2), table.ws-table tbody td:nth-child(2),
-  table.ws-table thead th:nth-child(3), table.ws-table tbody td:nth-child(3),
-  table.ws-table thead th:nth-child(5), table.ws-table tbody td:nth-child(5),
-  table.ws-table thead th:nth-child(6), table.ws-table tbody td:nth-child(6),
-  table.ws-table thead th:nth-child(7), table.ws-table tbody td:nth-child(7),
-  table.ws-table thead th:nth-child(8), table.ws-table tbody td:nth-child(8),
-  table.ws-table thead th:nth-child(9), table.ws-table tbody td:nth-child(9),
-  table.ws-table thead th:nth-child(10), table.ws-table tbody td:nth-child(10){
-    display:none !important;
-  }
-
   .dia-section-title{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:avoid;break-inside:avoid;}
   .dia-grand-total{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-inside:avoid;}
   #tbl_DiaSummaryA, #tbl_DiaSummaryB{min-width:0;}
@@ -521,6 +510,9 @@ header.hero .actions{justify-content:flex-end;max-width:620px;}
         <button class="btn" id="printBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></svg> Print / PDF</button>
         <button class="btn" id="saveProjectBtn" title="Save a full copy of this calculation (quantities + prices) under a name you can reload later"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg> Save Progress</button>
         <button class="btn" id="openSavedBtn" title="Open a previously saved calculation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg> Open Saved</button>
+        <button class="btn" id="backupBtn" title="Download a backup file with all quantities, prices and saved calculations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg> Backup</button>
+        <button class="btn" id="restoreBtn" title="Restore everything from a backup file (any device)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/></svg> Restore</button>
+        <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
         <button class="btn" id="resetQtyBtn" title="Clear all entered quantities (prices are not affected)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Reset Quantities</button>
         <button class="btn" id="resetPricesBtn" title="Clear all saved prices and restore the original defaults"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg> Reset Prices</button>
         <button class="btn primary" id="exportExcelBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg> Export Excel</button>
@@ -692,6 +684,39 @@ function applyFullState(state){
   recalcAll();
 }
 
+function backupFileName(){
+  const t = new Date();
+  const p2 = n => String(n).padStart(2,'0');
+  return 'CES_Piping_Cost_Backup_'+t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate())+'_'+p2(t.getHours())+p2(t.getMinutes())+'.json';
+}
+
+function downloadBackup(){
+  const payload = {app:'CES-Piping-Cost', version:1, exportedAt:new Date().toISOString(), state:captureFullState(), projects:loadProjects()};
+  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = backupFileName();
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function restoreBackupFromText(text){
+  let data;
+  try{ data = JSON.parse(text); }catch(e){ alert('This file is not a valid backup.'); return; }
+  const state = data && data.state ? data.state : (data && data.dry ? data : null);
+  if(!state || !state.dry){ alert('This file is not a valid backup.'); return; }
+  const projCount = data.projects ? Object.keys(data.projects).length : 0;
+  if(!confirm('Restore this backup? Current quantities and prices will be replaced'+(projCount ? ' and '+projCount+' saved calculation(s) will be added.' : '.'))) return;
+  if(data.projects){
+    try{
+      const merged = Object.assign({}, loadProjects(), data.projects);
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(merged));
+    }catch(e){}
+  }
+  applyFullState(state);
+  alert('Backup restored.');
+}
+
 function hasAnyQty(state){
   if(!state || !state.qty) return false;
   return Object.keys(state.qty).some(k=> Number(state.qty[k])>0);
@@ -835,7 +860,6 @@ function toolbar(text){
 
 const CAT_HEAD = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
 const CAT_HEAD_VALVE = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Bolts (75mm+)','Total Price'];
-const WS_HEAD = ['Size','Qty / Joint (g)','Qty (kg)','N.o Joints','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
 
 function buildCatTable(cat){
   const isValve = VALVE_CATS.includes(cat);
@@ -896,48 +920,6 @@ function buildCatTable(cat){
   return wrap;
 }
 
-const WS_ROWS = {Weld:()=>DATA.weld, Solv:()=>DATA.solv, VWeld:()=>VALVE_DATA.weld, VSolv:()=>VALVE_DATA.solv};
-const WS_IS_WELD = {Weld:true, Solv:false, VWeld:true, VSolv:false};
-
-function buildWSTable(kind){
-  const rows = WS_ROWS[kind]();
-  const isWeld = WS_IS_WELD[kind];
-  const wrap = el('div',{class:'table-wrap'});
-  const table = el('table',{id:'tbl_'+kind, class:'ws-table'});
-  const thead = el('thead');
-  const trh = el('tr');
-  WS_HEAD.forEach((h,i)=> trh.appendChild(el('th',{class:i<1?'left':''}, h)));
-  thead.appendChild(trh);
-  table.appendChild(thead);
-  const tbody = el('tbody');
-  rows.forEach((r)=>{
-    const tr = el('tr');
-    tr.appendChild(el('td',{class:'left'}, r.size||''));
-    const qpjTd = el('td');
-    if(isWeld){
-      const inp = el('input',{type:'number',step:'1',id:'qpj_'+kind+'_'+r.orig_row,value:r.qty_per_joint});
-      inp.addEventListener('input', function(){ r.qty_per_joint = Number(this.value)||0; recalcAll(); });
-      qpjTd.appendChild(inp);
-    } else {
-      qpjTd.appendChild(el('span',{class:'computed', id:'qpj_'+kind+'_'+r.orig_row}, '0.00'));
-    }
-    tr.appendChild(qpjTd);
-    ['kgqty','joints','dry','vat','inst','concept','prof','rate','total'].forEach(f=>{
-      tr.appendChild(el('td',{}, el('span',{class:'computed'+(f==='total'?' strong':''), id:'c_'+f+'_'+kind+'_'+r.orig_row}, '0').outerHTML));
-    });
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  const tfoot = el('tfoot');
-  const trf = el('tr');
-  trf.appendChild(el('td',{class:'left',colspan:'10'}, 'TOTAL'));
-  trf.appendChild(el('td',{}, el('span',{id:'tot_'+kind}, '0.00').outerHTML));
-  tfoot.appendChild(trf);
-  table.appendChild(tfoot);
-  wrap.appendChild(table);
-  return wrap;
-}
-
 /* group configs: how PriceList / Summary tables source their categories + weld/solv ids per main tab */
 const GROUP_CFG = {
   Pipe:  { cats:CATS,       data:DATA,       weldKind:'Weld',  solvKind:'Solv',  weldLabel:'Welding (rod / fusion material)', solvLabel:'Solvent Cement',  tblSuffix:'',  grandId:'grandTotal_Pipe' },
@@ -950,17 +932,17 @@ function buildPriceListTable(group){
   const table = el('table',{id:'tbl_'+cfg.tblSuffix+'PriceList'});
   const thead = el('thead');
   const trh = el('tr');
-  ['Item','Size','Unit','Dry Cost (EGP) — editable'].forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
+  ['Item','Size','Unit','Dry Cost (EGP) — editable','Qty / Joint (g)'].forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
   thead.appendChild(trh);
   table.appendChild(thead);
   const tbody = el('tbody');
 
   function addSection(title){
     const tr = el('tr',{class:'section-row'});
-    tr.appendChild(el('td',{colspan:'4'}, title));
+    tr.appendChild(el('td',{colspan:'5'}, title));
     tbody.appendChild(tr);
   }
-  function addRow(cat, r, itemLabel, unitLabel){
+  function addRow(cat, r, itemLabel, unitLabel, qpjMode){
     const tr = el('tr');
     tr.appendChild(el('td',{class:'left'}, itemLabel));
     tr.appendChild(el('td',{class:'left'}, r.size||''));
@@ -970,6 +952,15 @@ function buildPriceListTable(group){
     inp.addEventListener('input', function(){ r.dry = Number(this.value)||0; saveDryPrices(); recalcAll(); });
     dryTd.appendChild(inp);
     tr.appendChild(dryTd);
+    const qpjTd = el('td');
+    if(qpjMode==='input'){
+      const qi = el('input',{type:'number',step:'1',id:'qpj_'+cat+'_'+r.orig_row,value:r.qty_per_joint});
+      qi.addEventListener('input', function(){ r.qty_per_joint = Number(this.value)||0; recalcAll(); });
+      qpjTd.appendChild(qi);
+    } else if(qpjMode==='calc'){
+      qpjTd.appendChild(el('span',{class:'computed', id:'qpj_'+cat+'_'+r.orig_row}, '0.00'));
+    }
+    tr.appendChild(qpjTd);
     tbody.appendChild(tr);
   }
 
@@ -978,9 +969,9 @@ function buildPriceListTable(group){
     cfg.data.cats[cat].forEach(r=> addRow(cat, r, r.item||getCatLabel(cat), r.unit||''));
   });
   addSection(cfg.weldLabel);
-  cfg.data.weld.forEach(r=> addRow(cfg.weldKind, r, 'Welding', 'kg'));
+  cfg.data.weld.forEach(r=> addRow(cfg.weldKind, r, 'Welding', 'kg', 'input'));
   addSection(cfg.solvLabel);
-  cfg.data.solv.forEach(r=> addRow(cfg.solvKind, r, 'Solvent', 'kg'));
+  cfg.data.solv.forEach(r=> addRow(cfg.solvKind, r, 'Solvent', 'kg', 'calc'));
 
   table.appendChild(tbody);
   wrap.appendChild(table);
@@ -1026,14 +1017,14 @@ function buildDiameterSummaryTable(){
   const outer = el('div',{});
   const diamsSmall = DIAMS.filter(d=> d < DIA_SPLIT_MIN);
   const diamsBig = DIAMS.filter(d=> d >= DIA_SPLIT_MIN);
+  const cell = (cls, id, txt) => el('td',{}, el('span',{class:cls, id:id}, txt).outerHTML);
 
-  /* ---- Section A: diameters below 250mm — one combined total (no valves) ---- */
   outer.appendChild(buildDiaSectionTitle('Diameters below 250 mm — combined total (Pipe + Fittings, no valves)'));
   const wrapA = el('div',{class:'table-wrap'});
   const tableA = el('table',{id:'tbl_DiaSummaryA'});
   const theadA = el('thead');
   const trhA = el('tr');
-  ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Total Cost — Pipe + Fittings (EGP)',
+  ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Welding (EGP)','Solvent (EGP)','Total Cost — Pipe + Fittings (EGP)',
    'Cost / Meter — Pipe only (EGP/m)','Cost / Meter — Pipe + Fittings (EGP/m)'
   ].forEach((h,i)=> trhA.appendChild(el('th',{class:i===0?'left':''}, h)));
   theadA.appendChild(trhA);
@@ -1042,19 +1033,23 @@ function buildDiameterSummaryTable(){
   diamsSmall.forEach(d=>{
     const tr = el('tr',{id:'diarow_'+d});
     tr.appendChild(el('td',{class:'left'}, d+' mm'));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_len_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_pipecost_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'dia_cost_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_cpmPipe_'+d}, '—').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'dia_cpmAll_'+d}, '—').outerHTML));
+    tr.appendChild(cell('computed', 'dia_len_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_pipecost_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_weld_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_solv_'+d, '0.00'));
+    tr.appendChild(cell('computed strong', 'dia_cost_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_cpmPipe_'+d, '—'));
+    tr.appendChild(cell('computed strong', 'dia_cpmAll_'+d, '—'));
     tbodyA.appendChild(tr);
   });
   tableA.appendChild(tbodyA);
   const tfootA = el('tfoot');
   const trfA = el('tr');
   trfA.appendChild(el('td',{class:'left',colspan:'2'}, 'SUBTOTAL'));
-  trfA.appendChild(el('td',{}, el('span',{id:'dia_subPipeA'}, '0.00').outerHTML));
-  trfA.appendChild(el('td',{}, el('span',{id:'dia_subTotalA'}, '0.00').outerHTML));
+  trfA.appendChild(cell('', 'dia_subPipeA', '0.00'));
+  trfA.appendChild(cell('', 'dia_subWeldA', '0.00'));
+  trfA.appendChild(cell('', 'dia_subSolvA', '0.00'));
+  trfA.appendChild(cell('', 'dia_subTotalA', '0.00'));
   trfA.appendChild(el('td',{},''));
   trfA.appendChild(el('td',{},''));
   tfootA.appendChild(trfA);
@@ -1062,14 +1057,13 @@ function buildDiameterSummaryTable(){
   wrapA.appendChild(tableA);
   outer.appendChild(wrapA);
 
-  /* ---- Section B: diameters 250mm and above — split by category ---- */
   outer.appendChild(buildDiaSectionTitle('Diameters 250 mm and above — split by category'));
   const wrapB = el('div',{class:'table-wrap'});
   const tableB = el('table',{id:'tbl_DiaSummaryB'});
   const theadB = el('thead');
   const trhB = el('tr');
-  ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Elbow 90 (EGP)','Elbow 45 (EGP)','Tee (EGP)',
-   'Other — Reducer+Bush+Weld+Solv+Valves (EGP)','Total — All Categories (EGP)'
+  ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Elbow 90 (EGP)','Elbow 45 (EGP)','Tee (EGP)','Welding (EGP)','Solvent (EGP)',
+   'Other — Reducer+Bush+Valves (EGP)','Total — All Categories (EGP)'
   ].forEach((h,i)=> trhB.appendChild(el('th',{class:i===0?'left':''}, h)));
   theadB.appendChild(trhB);
   tableB.appendChild(theadB);
@@ -1077,31 +1071,34 @@ function buildDiameterSummaryTable(){
   diamsBig.forEach(d=>{
     const tr = el('tr',{id:'diarow_'+d});
     tr.appendChild(el('td',{class:'left'}, d+' mm'));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_len_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_pipecost_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_elbow90_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_elbow45_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_tee_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed', id:'dia_other_'+d}, '0.00').outerHTML));
-    tr.appendChild(el('td',{}, el('span',{class:'computed strong', id:'dia_totalB_'+d}, '0.00').outerHTML));
+    tr.appendChild(cell('computed', 'dia_len_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_pipecost_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_elbow90_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_elbow45_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_tee_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_weld_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_solv_'+d, '0.00'));
+    tr.appendChild(cell('computed', 'dia_other_'+d, '0.00'));
+    tr.appendChild(cell('computed strong', 'dia_totalB_'+d, '0.00'));
     tbodyB.appendChild(tr);
   });
   tableB.appendChild(tbodyB);
   const tfootB = el('tfoot');
   const trfB = el('tr');
   trfB.appendChild(el('td',{class:'left',colspan:'2'}, 'SUBTOTAL'));
-  trfB.appendChild(el('td',{}, el('span',{id:'dia_subPipeB'}, '0.00').outerHTML));
-  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandElbow90'}, '0.00').outerHTML));
-  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandElbow45'}, '0.00').outerHTML));
-  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandTee'}, '0.00').outerHTML));
-  trfB.appendChild(el('td',{}, el('span',{id:'dia_grandOther'}, '0.00').outerHTML));
-  trfB.appendChild(el('td',{}, el('span',{id:'dia_subTotalB'}, '0.00').outerHTML));
+  trfB.appendChild(cell('', 'dia_subPipeB', '0.00'));
+  trfB.appendChild(cell('', 'dia_grandElbow90', '0.00'));
+  trfB.appendChild(cell('', 'dia_grandElbow45', '0.00'));
+  trfB.appendChild(cell('', 'dia_grandTee', '0.00'));
+  trfB.appendChild(cell('', 'dia_grandWeld', '0.00'));
+  trfB.appendChild(cell('', 'dia_grandSolv', '0.00'));
+  trfB.appendChild(cell('', 'dia_grandOther', '0.00'));
+  trfB.appendChild(cell('', 'dia_subTotalB', '0.00'));
   tfootB.appendChild(trfB);
   tableB.appendChild(tfootB);
   wrapB.appendChild(tableB);
   outer.appendChild(wrapB);
 
-  /* ---- Combined grand total banner ---- */
   const grandBar = el('div',{class:'dia-grand-total'});
   grandBar.appendChild(el('span',{class:'dia-grand-label'}, 'Grand Total — All Diameters Combined'));
   grandBar.appendChild(el('span',{class:'dia-grand-value', id:'dia_grandCombined'}, '0.00 EGP'));
@@ -1121,15 +1118,11 @@ const LEAF_DEFS = {
   Pipe: [
     {id:'PriceList', label:'Price List'},
     ...CATS.map(c=>({id:c, label:getCatLabel(c)})),
-    {id:'Weld', label:'Welding'},
-    {id:'Solv', label:'Solvent'},
     {id:'Summary', label:'Summary'},
   ],
   Valve: [
     {id:'VPriceList', label:'Price List'},
     ...VALVE_CATS.map(c=>({id:c, label:getCatLabel(c)})),
-    {id:'VWeld', label:'Welding'},
-    {id:'VSolv', label:'Solvent'},
     {id:'VSummary', label:'Summary'},
   ],
   Global: [
@@ -1156,24 +1149,12 @@ function buildLeafPanel(mainId, leaf){
     const hintText = leaf.id==='BallValve' ? 'Qty = No of Units' : 'Qty = No of Units';
     panel.appendChild(toolbar(hintText));
     panel.appendChild(buildCatTable(leaf.id));
-  } else if(leaf.id==='Weld'){
-    panel.appendChild(toolbar('(2 ends/Elbow, 3/Tee, 2/Reducer or Bush).'));
-    panel.appendChild(buildWSTable('Weld'));
-  } else if(leaf.id==='Solv'){
-    panel.appendChild(toolbar('Same joint count as Welding, at half the material rate per joint.'));
-    panel.appendChild(buildWSTable('Solv'));
-  } else if(leaf.id==='VWeld'){
-    panel.appendChild(toolbar('Joints from Ball Valve, Check Valve, Socket &amp; Puddle Flange (2 ends each).'));
-    panel.appendChild(buildWSTable('VWeld'));
-  } else if(leaf.id==='VSolv'){
-    panel.appendChild(toolbar('Same joint count as Valves Welding, at half the material rate per joint.'));
-    panel.appendChild(buildWSTable('VSolv'));
   } else if(leaf.id==='Summary'){
     panel.appendChild(buildSummaryTable('Pipe'));
   } else if(leaf.id==='VSummary'){
     panel.appendChild(buildSummaryTable('Valve'));
   } else if(leaf.id==='DiaSummary'){
-    panel.appendChild(toolbar('Diameters below 250 mm: one combined Pipe+Fittings total (no valves). Diameters 250 mm and above: split by category (Elbow 90 / Elbow 45 / Tee / Other), including valves.'));
+    panel.appendChild(toolbar('Diameters below 250 mm: one combined Pipe+Fittings total (no valves). Diameters 250 mm and above: split by category (Elbow 90 / Elbow 45 / Tee / Welding / Solvent / Other), including valves.'));
     panel.appendChild(buildDiameterSummaryTable());
   }
   return panel;
@@ -1309,7 +1290,11 @@ function recalcGroup(cfg, totals){
 
 function recalcDiameterSummary(){
   const diaLen = {}, diaPipeCost = {}, diaElbow90 = {}, diaElbow45 = {}, diaTee = {}, diaOtherPipeSide = {}, diaValves = {};
-  DIAMS.forEach(d=>{ diaLen[d]=0; diaPipeCost[d]=0; diaElbow90[d]=0; diaElbow45[d]=0; diaTee[d]=0; diaOtherPipeSide[d]=0; diaValves[d]=0; });
+  const diaWeldP = {}, diaSolvP = {}, diaWeldV = {}, diaSolvV = {};
+  DIAMS.forEach(d=>{
+    diaLen[d]=0; diaPipeCost[d]=0; diaElbow90[d]=0; diaElbow45[d]=0; diaTee[d]=0; diaOtherPipeSide[d]=0; diaValves[d]=0;
+    diaWeldP[d]=0; diaSolvP[d]=0; diaWeldV[d]=0; diaSolvV[d]=0;
+  });
 
   function accumulate(target, cat, rows){
     rows.forEach(r=>{
@@ -1323,52 +1308,62 @@ function recalcDiameterSummary(){
   accumulate(diaTee, 'Tee', DATA.cats['Tee']);
   accumulate(diaOtherPipeSide, 'Reducer', DATA.cats['Reducer']);
   accumulate(diaOtherPipeSide, 'Bush', DATA.cats['Bush']);
-  accumulate(diaOtherPipeSide, 'Weld', DATA.weld);
-  accumulate(diaOtherPipeSide, 'Solv', DATA.solv);
+  accumulate(diaWeldP, 'Weld', DATA.weld);
+  accumulate(diaSolvP, 'Solv', DATA.solv);
   VALVE_CATS.forEach(cat=> accumulate(diaValves, cat, VALVE_DATA.cats[cat]));
-  accumulate(diaValves, 'VWeld', VALVE_DATA.weld);
-  accumulate(diaValves, 'VSolv', VALVE_DATA.solv);
+  accumulate(diaWeldV, 'VWeld', VALVE_DATA.weld);
+  accumulate(diaSolvV, 'VSolv', VALVE_DATA.solv);
 
   DATA.cats['Pipe'].forEach(r=>{
     const d = normSize(r.size);
     if(diaLen.hasOwnProperty(d)) diaLen[d] += Number(r.qty)||0;
   });
 
-  let grandPipeDia=0, grandElbow90=0, grandElbow45=0, grandTee=0, grandOther=0;
-  let subPipeA=0, subTotalA=0, subPipeB=0, subTotalB=0;
+  let grandElbow90=0, grandElbow45=0, grandTee=0, grandWeld=0, grandSolv=0, grandOther=0;
+  let subPipeA=0, subWeldA=0, subSolvA=0, subTotalA=0, subPipeB=0, subTotalB=0;
   DIAMS.forEach(d=>{
     const len = diaLen[d]||0;
     const pipeCost = diaPipeCost[d]||0;
     const isSplit = Number(d) >= DIA_SPLIT_MIN;
     setText('dia_len_'+d, fmt(len));
     setText('dia_pipecost_'+d, fmt(pipeCost));
-    grandPipeDia += pipeCost;
 
     if(isSplit){
       const e90 = diaElbow90[d]||0, e45 = diaElbow45[d]||0, tee = diaTee[d]||0;
+      const weld = (diaWeldP[d]||0) + (diaWeldV[d]||0);
+      const solv = (diaSolvP[d]||0) + (diaSolvV[d]||0);
       const other = (diaOtherPipeSide[d]||0) + (diaValves[d]||0);
-      const totalB = pipeCost + e90 + e45 + tee + other;
+      const totalB = pipeCost + e90 + e45 + tee + weld + solv + other;
       setText('dia_elbow90_'+d, fmt(e90));
       setText('dia_elbow45_'+d, fmt(e45));
       setText('dia_tee_'+d, fmt(tee));
+      setText('dia_weld_'+d, fmt(weld));
+      setText('dia_solv_'+d, fmt(solv));
       setText('dia_other_'+d, fmt(other));
       setText('dia_totalB_'+d, fmt(totalB));
-      grandElbow90 += e90; grandElbow45 += e45; grandTee += tee; grandOther += other;
+      grandElbow90 += e90; grandElbow45 += e45; grandTee += tee; grandWeld += weld; grandSolv += solv; grandOther += other;
       subPipeB += pipeCost; subTotalB += totalB;
     } else {
-      const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0);
+      const weld = diaWeldP[d]||0, solv = diaSolvP[d]||0;
+      const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0) + weld + solv;
+      setText('dia_weld_'+d, fmt(weld));
+      setText('dia_solv_'+d, fmt(solv));
       setText('dia_cost_'+d, fmt(combined));
       setText('dia_cpmPipe_'+d, len>0 ? fmt(pipeCost/len) : '—');
       setText('dia_cpmAll_'+d, len>0 ? fmt(combined/len) : '—');
-      subPipeA += pipeCost; subTotalA += combined;
+      subPipeA += pipeCost; subWeldA += weld; subSolvA += solv; subTotalA += combined;
     }
   });
   setText('dia_subPipeA', fmt(subPipeA));
+  setText('dia_subWeldA', fmt(subWeldA));
+  setText('dia_subSolvA', fmt(subSolvA));
   setText('dia_subTotalA', fmt(subTotalA));
   setText('dia_subPipeB', fmt(subPipeB));
   setText('dia_grandElbow90', fmt(grandElbow90));
   setText('dia_grandElbow45', fmt(grandElbow45));
   setText('dia_grandTee', fmt(grandTee));
+  setText('dia_grandWeld', fmt(grandWeld));
+  setText('dia_grandSolv', fmt(grandSolv));
   setText('dia_grandOther', fmt(grandOther));
   setText('dia_subTotalB', fmt(subTotalB));
   setText('dia_grandCombined', fmt(subTotalA + subTotalB) + ' EGP');
@@ -1726,11 +1721,14 @@ async function exportExcel(){
   wsS.getCell(rr,1).font = {bold:true, size:12, color:{argb:CLR.navy}};
   wsS.getCell(rr,2).font = {bold:true, size:12, color:{argb:CLR.navy}};
 
-  /* ---- Diameter Summary sheet ---- */
   const wsD = wb.addWorksheet('Diameter Summary', {properties:{tabColor:{argb:CLR.teal}}});
-  wsD.columns = [{width:14},{width:18},{width:18},{width:20},{width:20},{width:18},{width:30},{width:22}];
+  wsD.columns = [{width:14},{width:16},{width:16},{width:16},{width:16},{width:20},{width:20},{width:22},{width:26},{width:22}];
   const diaPipeCost = {}, diaElbow90 = {}, diaElbow45 = {}, diaTee = {}, diaOtherPipeSide = {}, diaValves = {}, diaLen = {};
-  DIAMS.forEach(d=>{ diaPipeCost[d]=0; diaElbow90[d]=0; diaElbow45[d]=0; diaTee[d]=0; diaOtherPipeSide[d]=0; diaValves[d]=0; diaLen[d]=0; });
+  const diaWeldP = {}, diaSolvP = {}, diaWeldV = {}, diaSolvV = {};
+  DIAMS.forEach(d=>{
+    diaPipeCost[d]=0; diaElbow90[d]=0; diaElbow45[d]=0; diaTee[d]=0; diaOtherPipeSide[d]=0; diaValves[d]=0; diaLen[d]=0;
+    diaWeldP[d]=0; diaSolvP[d]=0; diaWeldV[d]=0; diaSolvV[d]=0;
+  });
   function diaAccumulate(target, rowTotalSrc, cat, rows){
     rows.forEach(row=>{
       const d = normSize(row.size);
@@ -1743,11 +1741,11 @@ async function exportExcel(){
   diaAccumulate(diaTee, pipeCalc.rowTotal, 'Tee', DATA.cats['Tee']);
   diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, 'Reducer', DATA.cats['Reducer']);
   diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, 'Bush', DATA.cats['Bush']);
-  diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, GROUP_CFG.Pipe.weldKind, DATA.weld);
-  diaAccumulate(diaOtherPipeSide, pipeCalc.rowTotal, GROUP_CFG.Pipe.solvKind, DATA.solv);
+  diaAccumulate(diaWeldP, pipeCalc.rowTotal, GROUP_CFG.Pipe.weldKind, DATA.weld);
+  diaAccumulate(diaSolvP, pipeCalc.rowTotal, GROUP_CFG.Pipe.solvKind, DATA.solv);
   VALVE_CATS.forEach(cat=> diaAccumulate(diaValves, valveCalc.rowTotal, cat, VALVE_DATA.cats[cat]));
-  diaAccumulate(diaValves, valveCalc.rowTotal, GROUP_CFG.Valve.weldKind, VALVE_DATA.weld);
-  diaAccumulate(diaValves, valveCalc.rowTotal, GROUP_CFG.Valve.solvKind, VALVE_DATA.solv);
+  diaAccumulate(diaWeldV, valveCalc.rowTotal, GROUP_CFG.Valve.weldKind, VALVE_DATA.weld);
+  diaAccumulate(diaSolvV, valveCalc.rowTotal, GROUP_CFG.Valve.solvKind, VALVE_DATA.solv);
   DATA.cats['Pipe'].forEach(row=>{
     const d = normSize(row.size);
     if(diaLen.hasOwnProperty(d)) diaLen[d] += Number(row.qty)||0;
@@ -1755,69 +1753,75 @@ async function exportExcel(){
 
   const diamsSmall = DIAMS.filter(d=> d < DIA_SPLIT_MIN);
   const diamsBig = DIAMS.filter(d=> d >= DIA_SPLIT_MIN);
+  const setMoney = (r, cols) => cols.forEach(c=>{ wsD.getCell(r,c).numFmt = '#,##0.00'; });
   let rrD = 1;
 
-  /* Section A */
-  styleTitleRow(wsD, rrD, 6);
+  styleTitleRow(wsD, rrD, 8);
   wsD.getCell(rrD,1).value = 'DIAMETERS BELOW 250 MM — COMBINED PIPE + FITTINGS (NO VALVES)';
   rrD++;
-  wsD.getRow(rrD).values = ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Total Cost — Pipe+Fittings (EGP)','Cost/Meter — Pipe only (EGP/m)','Cost/Meter — Pipe+Fittings (EGP/m)'];
-  styleHeaderRow(wsD, rrD, 6);
-  rrD++;
-  let aRow=false, subPipeA=0, subTotalA=0;
-  diamsSmall.forEach(d=>{
-    const len = diaLen[d]||0, pipeCost = diaPipeCost[d]||0;
-    const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0);
-    if(Math.abs(len) < 0.005 && Math.abs(combined) < 0.005) return;
-    const cpmPipe = len>0 ? pipeCost/len : null, cpmAll = len>0 ? combined/len : null;
-    wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(combined), cpmPipe!==null?round2(cpmPipe):'—', cpmAll!==null?round2(cpmAll):'—'];
-    for(const c of [2,3,4]) wsD.getCell(rrD,c).numFmt = '#,##0.00';
-    if(cpmPipe!==null) wsD.getCell(rrD,5).numFmt = '#,##0.00';
-    if(cpmAll!==null) wsD.getCell(rrD,6).numFmt = '#,##0.00';
-    styleDataRow(wsD, rrD, 6, aRow);
-    aRow = !aRow; subPipeA += pipeCost; subTotalA += combined; rrD++;
-  });
-  wsD.getCell(rrD,1).value = 'SUBTOTAL';
-  wsD.getCell(rrD,3).value = round2(subPipeA); wsD.getCell(rrD,3).numFmt = '#,##0.00';
-  wsD.getCell(rrD,4).value = round2(subTotalA); wsD.getCell(rrD,4).numFmt = '#,##0.00';
-  styleTotalRow(wsD, rrD, 6);
-  rrD += 2;
-
-  /* Section B */
-  styleTitleRow(wsD, rrD, 8);
-  wsD.getCell(rrD,1).value = 'DIAMETERS 250 MM AND ABOVE — SPLIT BY CATEGORY';
-  rrD++;
-  wsD.getRow(rrD).values = ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Elbow 90 (EGP)','Elbow 45 (EGP)','Tee (EGP)','Other — Reducer+Bush+Weld+Solv+Valves (EGP)','Total — All Categories (EGP)'];
+  wsD.getRow(rrD).values = ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Welding (EGP)','Solvent (EGP)','Total Cost — Pipe+Fittings (EGP)','Cost/Meter — Pipe only (EGP/m)','Cost/Meter — Pipe+Fittings (EGP/m)'];
   styleHeaderRow(wsD, rrD, 8);
   rrD++;
-  let bRow=false, subPipeB=0, grandE90=0, grandE45=0, grandTee=0, grandOther=0, subTotalB=0;
-  diamsBig.forEach(d=>{
+  let aRow=false, subPipeA=0, subWeldA=0, subSolvA=0, subTotalA=0;
+  diamsSmall.forEach(d=>{
     const len = diaLen[d]||0, pipeCost = diaPipeCost[d]||0;
-    const e90 = diaElbow90[d]||0, e45 = diaElbow45[d]||0, tee = diaTee[d]||0;
-    const other = (diaOtherPipeSide[d]||0) + (diaValves[d]||0);
-    const total = pipeCost + e90 + e45 + tee + other;
-    if(Math.abs(len) < 0.005 && Math.abs(total) < 0.005) return;
-    wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(e90), round2(e45), round2(tee), round2(other), round2(total)];
-    for(const c of [2,3,4,5,6,7,8]) wsD.getCell(rrD,c).numFmt = '#,##0.00';
-    styleDataRow(wsD, rrD, 8, bRow);
-    bRow = !bRow; subPipeB += pipeCost; grandE90 += e90; grandE45 += e45; grandTee += tee; grandOther += other; subTotalB += total; rrD++;
+    const weld = diaWeldP[d]||0, solv = diaSolvP[d]||0;
+    const combined = pipeCost + (diaElbow90[d]||0) + (diaElbow45[d]||0) + (diaTee[d]||0) + (diaOtherPipeSide[d]||0) + weld + solv;
+    if(Math.abs(len) < 0.005 && Math.abs(combined) < 0.005) return;
+    const cpmPipe = len>0 ? pipeCost/len : null, cpmAll = len>0 ? combined/len : null;
+    wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(weld), round2(solv), round2(combined), cpmPipe!==null?round2(cpmPipe):'—', cpmAll!==null?round2(cpmAll):'—'];
+    setMoney(rrD, [2,3,4,5,6]);
+    if(cpmPipe!==null) setMoney(rrD, [7]);
+    if(cpmAll!==null) setMoney(rrD, [8]);
+    styleDataRow(wsD, rrD, 8, aRow);
+    aRow = !aRow; subPipeA += pipeCost; subWeldA += weld; subSolvA += solv; subTotalA += combined; rrD++;
   });
   wsD.getCell(rrD,1).value = 'SUBTOTAL';
-  wsD.getCell(rrD,3).value = round2(subPipeB); wsD.getCell(rrD,3).numFmt = '#,##0.00';
-  wsD.getCell(rrD,4).value = round2(grandE90); wsD.getCell(rrD,4).numFmt = '#,##0.00';
-  wsD.getCell(rrD,5).value = round2(grandE45); wsD.getCell(rrD,5).numFmt = '#,##0.00';
-  wsD.getCell(rrD,6).value = round2(grandTee); wsD.getCell(rrD,6).numFmt = '#,##0.00';
-  wsD.getCell(rrD,7).value = round2(grandOther); wsD.getCell(rrD,7).numFmt = '#,##0.00';
-  wsD.getCell(rrD,8).value = round2(subTotalB); wsD.getCell(rrD,8).numFmt = '#,##0.00';
+  wsD.getCell(rrD,3).value = round2(subPipeA);
+  wsD.getCell(rrD,4).value = round2(subWeldA);
+  wsD.getCell(rrD,5).value = round2(subSolvA);
+  wsD.getCell(rrD,6).value = round2(subTotalA);
+  setMoney(rrD, [3,4,5,6]);
   styleTotalRow(wsD, rrD, 8);
   rrD += 2;
 
-  /* Combined grand total */
+  styleTitleRow(wsD, rrD, 10);
+  wsD.getCell(rrD,1).value = 'DIAMETERS 250 MM AND ABOVE — SPLIT BY CATEGORY';
+  rrD++;
+  wsD.getRow(rrD).values = ['Diameter','Pipe Length (m)','Pipe Cost (EGP)','Elbow 90 (EGP)','Elbow 45 (EGP)','Tee (EGP)','Welding (EGP)','Solvent (EGP)','Other — Reducer+Bush+Valves (EGP)','Total — All Categories (EGP)'];
+  styleHeaderRow(wsD, rrD, 10);
+  rrD++;
+  let bRow=false, subPipeB=0, grandE90=0, grandE45=0, grandTee=0, grandWeld=0, grandSolv=0, grandOther=0, subTotalB=0;
+  diamsBig.forEach(d=>{
+    const len = diaLen[d]||0, pipeCost = diaPipeCost[d]||0;
+    const e90 = diaElbow90[d]||0, e45 = diaElbow45[d]||0, tee = diaTee[d]||0;
+    const weld = (diaWeldP[d]||0) + (diaWeldV[d]||0), solv = (diaSolvP[d]||0) + (diaSolvV[d]||0);
+    const other = (diaOtherPipeSide[d]||0) + (diaValves[d]||0);
+    const total = pipeCost + e90 + e45 + tee + weld + solv + other;
+    if(Math.abs(len) < 0.005 && Math.abs(total) < 0.005) return;
+    wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(e90), round2(e45), round2(tee), round2(weld), round2(solv), round2(other), round2(total)];
+    setMoney(rrD, [2,3,4,5,6,7,8,9,10]);
+    styleDataRow(wsD, rrD, 10, bRow);
+    bRow = !bRow; subPipeB += pipeCost; grandE90 += e90; grandE45 += e45; grandTee += tee; grandWeld += weld; grandSolv += solv; grandOther += other; subTotalB += total; rrD++;
+  });
+  wsD.getCell(rrD,1).value = 'SUBTOTAL';
+  wsD.getCell(rrD,3).value = round2(subPipeB);
+  wsD.getCell(rrD,4).value = round2(grandE90);
+  wsD.getCell(rrD,5).value = round2(grandE45);
+  wsD.getCell(rrD,6).value = round2(grandTee);
+  wsD.getCell(rrD,7).value = round2(grandWeld);
+  wsD.getCell(rrD,8).value = round2(grandSolv);
+  wsD.getCell(rrD,9).value = round2(grandOther);
+  wsD.getCell(rrD,10).value = round2(subTotalB);
+  setMoney(rrD, [3,4,5,6,7,8,9,10]);
+  styleTotalRow(wsD, rrD, 10);
+  rrD += 2;
+
   wsD.getCell(rrD,1).value = 'GRAND TOTAL — ALL DIAMETERS COMBINED';
   wsD.getCell(rrD,1).font = {bold:true, size:12};
-  wsD.getCell(rrD,4).value = round2(subTotalA + subTotalB);
-  wsD.getCell(rrD,4).numFmt = '#,##0.00';
-  wsD.getCell(rrD,4).font = {bold:true, size:12};
+  wsD.getCell(rrD,6).value = round2(subTotalA + subTotalB);
+  wsD.getCell(rrD,6).numFmt = '#,##0.00';
+  wsD.getCell(rrD,6).font = {bold:true, size:12};
   wsD.views = [{state:'frozen', ySplit:0}];
 
   const buf = await wb.xlsx.writeBuffer();
@@ -1903,6 +1907,21 @@ function init(){
   if(savedModalOverlay) savedModalOverlay.addEventListener('click', function(e){
     if(e.target === savedModalOverlay) savedModalOverlay.classList.remove('open');
   });
+
+  const backupBtn = document.getElementById('backupBtn');
+  if(backupBtn) backupBtn.addEventListener('click', downloadBackup);
+  const restoreBtn = document.getElementById('restoreBtn');
+  const restoreFile = document.getElementById('restoreFile');
+  if(restoreBtn && restoreFile){
+    restoreBtn.addEventListener('click', function(){ restoreFile.value = ''; restoreFile.click(); });
+    restoreFile.addEventListener('change', function(){
+      const f = this.files && this.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = function(){ restoreBackupFromText(String(reader.result||'')); };
+      reader.readAsText(f);
+    });
+  }
 
   initTabsAndPanels();
   recalcAll();
