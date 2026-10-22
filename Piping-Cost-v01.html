@@ -1434,15 +1434,18 @@ function renderSummaryBar(totals, grand){
 
 /* ---------- styled Excel export (ExcelJS) ---------- */
 const CLR = {
-  navy:'FF0A1B33', navyLight:'FF1C3A63', amber:'FFDFA355', amberDark:'FFC4863A',
-  white:'FFFFFFFF', rowAlt:'FFF7F9FC', totalFill:'FFFBF3E7', border:'FFDDE2EA', teal:'FF2AA9A0'
+  title:'FF5090D8', head:'FF2E75B6', section:'FF5090D8', text:'FF1F5FA8', white:'FFFFFFFF',
+  rowAlt:'FFEAF1FA', gray:'FFF2F2F2', border:'FF9DC3E6', totalFill:'FF5090D8', grandFill:'FF2E75B6',
+  tabMain:'FF2E75B6', tabLight:'FF5090D8', tabWeld:'FFC00000'
 };
+const solid = argb => ({type:'pattern', pattern:'solid', fgColor:{argb:argb}});
+const thinBox = () => ({top:{style:'thin',color:{argb:CLR.border}}, left:{style:'thin',color:{argb:CLR.border}}, bottom:{style:'thin',color:{argb:CLR.border}}, right:{style:'thin',color:{argb:CLR.border}}});
 
 function styleTitleRow(ws, rowNum, span){
   ws.mergeCells(rowNum,1,rowNum,span);
   const cell = ws.getCell(rowNum,1);
   cell.font = {bold:true, size:14, color:{argb:CLR.white}};
-  cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.navy}};
+  cell.fill = solid(CLR.title);
   cell.alignment = {vertical:'middle', horizontal:'center'};
   ws.getRow(rowNum).height = 28;
 }
@@ -1450,35 +1453,50 @@ function styleHeaderRow(ws, rowNum, span){
   for(let c=1;c<=span;c++){
     const cell = ws.getCell(rowNum,c);
     cell.font = {bold:true, size:10.5, color:{argb:CLR.white}};
-    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.navyLight}};
+    cell.fill = solid(CLR.head);
     cell.alignment = {vertical:'middle', horizontal:'center', wrapText:true};
-    cell.border = {bottom:{style:'thin', color:{argb:CLR.border}}};
+    cell.border = thinBox();
   }
-  ws.getRow(rowNum).height = 26;
+  ws.getRow(rowNum).height = 30;
 }
 function styleSectionRow(ws, rowNum, span, text){
   ws.mergeCells(rowNum,1,rowNum,span);
   const cell = ws.getCell(rowNum,1);
   cell.value = text;
-  cell.font = {bold:true, size:10.5, color:{argb:CLR.navy}};
-  cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.amber}};
-  cell.alignment = {vertical:'middle', horizontal:'left', indent:1};
+  cell.font = {bold:true, size:11, color:{argb:CLR.white}};
+  cell.fill = solid(CLR.section);
+  cell.alignment = {vertical:'middle', horizontal:'center'};
+  ws.getRow(rowNum).height = 22;
 }
-function styleDataRow(ws, rowNum, span, alt){
+function styleDataRow(ws, rowNum, span, alt, leftCols){
+  const lc = leftCols || 3;
   for(let c=1;c<=span;c++){
     const cell = ws.getCell(rowNum,c);
-    cell.border = {bottom:{style:'hair', color:{argb:CLR.border}}};
-    if(alt) cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.rowAlt}};
-    cell.alignment = {vertical:'middle', horizontal: c<=3?'left':'center'};
+    cell.border = thinBox();
+    cell.font = {size:10.5, color:{argb:CLR.text}, bold: c===1};
+    cell.fill = solid(alt ? CLR.rowAlt : CLR.white);
+    cell.alignment = {vertical:'middle', horizontal: c<=lc?'left':'center'};
   }
 }
 function styleTotalRow(ws, rowNum, span){
   for(let c=1;c<=span;c++){
     const cell = ws.getCell(rowNum,c);
-    cell.font = {bold:true, color:{argb:CLR.navy}};
-    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:CLR.totalFill}};
-    cell.border = {top:{style:'medium', color:{argb:CLR.amber}}};
+    cell.font = {bold:true, size:11, color:{argb:CLR.white}};
+    cell.fill = solid(CLR.totalFill);
+    cell.border = thinBox();
+    cell.alignment = {vertical:'middle', horizontal: c===1?'left':'center'};
   }
+  ws.getRow(rowNum).height = 22;
+}
+function styleGrandRow(ws, rowNum, span){
+  for(let c=1;c<=span;c++){
+    const cell = ws.getCell(rowNum,c);
+    cell.font = {bold:true, size:12, color:{argb:CLR.white}};
+    cell.fill = solid(CLR.grandFill);
+    cell.border = thinBox();
+    cell.alignment = {vertical:'middle', horizontal: c===1?'left':'center'};
+  }
+  ws.getRow(rowNum).height = 26;
 }
 function colLetter(n){
   let s='';
@@ -1534,7 +1552,7 @@ async function exportExcel(){
   wb.created = new Date();
 
   /* ---- Assumptions sheet — every pricing formula below reads from here ---- */
-  const wsA = wb.addWorksheet('Assumptions', {properties:{tabColor:{argb:CLR.teal}}});
+  const wsA = wb.addWorksheet('Assumptions', {properties:{tabColor:{argb:CLR.tabMain}}});
   wsA.columns = [{width:30},{width:16},{width:44}];
   styleTitleRow(wsA, 1, 3);
   wsA.getCell(1,1).value = 'PRICING ASSUMPTIONS — edit these, everything recalculates';
@@ -1559,7 +1577,7 @@ async function exportExcel(){
   /* ---- Price List sheets (Pipe + Valves) ---- */
   const plCols = [{header:'Item',width:18},{header:'Size',width:12},{header:'Unit',width:9},{header:'Dry Cost (EGP)',width:18}];
   function buildPriceListSheet(sheetName, title, cfg){
-    const ws = wb.addWorksheet(sheetName, {properties:{tabColor:{argb:CLR.amber}}});
+    const ws = wb.addWorksheet(sheetName, {properties:{tabColor:{argb:CLR.tabLight}}});
     ws.columns = plCols.map(c=>({width:c.width}));
     styleTitleRow(ws, 1, 4);
     ws.getCell(1,1).value = title;
@@ -1609,7 +1627,7 @@ async function exportExcel(){
       return {row, p, boltsFee};
     }).filter(x=> Math.abs(x.p.total) >= 0.005);
     if(!filledRows.length) return;
-    const ws = wb.addWorksheet(getCatLabel(cat).slice(0,31), {properties:{tabColor:{argb:CLR.navyLight}}});
+    const ws = wb.addWorksheet(getCatLabel(cat).slice(0,31), {properties:{tabColor:{argb:CLR.tabMain}}});
     ws.columns = widths.map(w=>({width:w}));
     styleTitleRow(ws, 1, lastCol);
     ws.getCell(1,1).value = getCatLabel(cat).toUpperCase() + ' — Quantities & Pricing';
@@ -1659,7 +1677,7 @@ async function exportExcel(){
       return {row, joints, qpj, kgqty, p};
     }).filter(x=> Math.abs(x.p.total) >= 0.005);
     if(!computed.length) return;
-    const ws = wb.addWorksheet(name, {properties:{tabColor:{argb: isWeld?'FFC1453C':CLR.teal}}});
+    const ws = wb.addWorksheet(name, {properties:{tabColor:{argb: isWeld?CLR.tabWeld:CLR.tabLight}}});
     ws.columns = wsWidths.map(w=>({width:w}));
     styleTitleRow(ws, 1, 11);
     ws.getCell(1,1).value = name.toUpperCase() + (isWeld ? ' (WELDON) — Fusion Joints & Pricing' : ' — Joints & Pricing');
@@ -1692,7 +1710,7 @@ async function exportExcel(){
   /* ---- Summary sheet (Pipe + Valves combined) ---- */
   const pipeCalc = computeGroupTotals(GROUP_CFG.Pipe);
   const valveCalc = computeGroupTotals(GROUP_CFG.Valve);
-  const wsS = wb.addWorksheet('Summary', {properties:{tabColor:{argb:CLR.amberDark}}});
+  const wsS = wb.addWorksheet('Summary', {properties:{tabColor:{argb:CLR.tabMain}}});
   wsS.columns = [{width:28},{width:20}];
   styleTitleRow(wsS, 1, 2);
   wsS.getCell(1,1).value = 'SUMMARY — Total Costs by Category';
@@ -1703,7 +1721,7 @@ async function exportExcel(){
   function summaryRow(name, val){
     wsS.getRow(rr).values = [name, round2(val)];
     wsS.getCell(rr,2).numFmt = '#,##0.00';
-    styleDataRow(wsS, rr, 2, a);
+    styleDataRow(wsS, rr, 2, a, 1);
     a = !a; grand += val; rr++;
   }
   const pipeRows = CATS.map(cat=>[getCatLabel(cat), pipeCalc.catTotals[cat]])
@@ -1717,11 +1735,9 @@ async function exportExcel(){
   wsS.getCell(rr,1).value = 'GRAND TOTAL';
   wsS.getCell(rr,2).value = round2(grand);
   wsS.getCell(rr,2).numFmt = '#,##0.00';
-  styleTotalRow(wsS, rr, 2);
-  wsS.getCell(rr,1).font = {bold:true, size:12, color:{argb:CLR.navy}};
-  wsS.getCell(rr,2).font = {bold:true, size:12, color:{argb:CLR.navy}};
+  styleGrandRow(wsS, rr, 2);
 
-  const wsD = wb.addWorksheet('Diameter Summary', {properties:{tabColor:{argb:CLR.teal}}});
+  const wsD = wb.addWorksheet('Diameter Summary', {properties:{tabColor:{argb:CLR.tabMain}}});
   wsD.columns = [{width:14},{width:16},{width:16},{width:16},{width:16},{width:20},{width:20},{width:22},{width:26},{width:22}];
   const diaPipeCost = {}, diaElbow90 = {}, diaElbow45 = {}, diaTee = {}, diaOtherPipeSide = {}, diaValves = {}, diaLen = {};
   const diaWeldP = {}, diaSolvP = {}, diaWeldV = {}, diaSolvV = {};
@@ -1773,7 +1789,7 @@ async function exportExcel(){
     setMoney(rrD, [2,3,4,5,6]);
     if(cpmPipe!==null) setMoney(rrD, [7]);
     if(cpmAll!==null) setMoney(rrD, [8]);
-    styleDataRow(wsD, rrD, 8, aRow);
+    styleDataRow(wsD, rrD, 8, aRow, 1);
     aRow = !aRow; subPipeA += pipeCost; subWeldA += weld; subSolvA += solv; subTotalA += combined; rrD++;
   });
   wsD.getCell(rrD,1).value = 'SUBTOTAL';
@@ -1801,7 +1817,7 @@ async function exportExcel(){
     if(Math.abs(len) < 0.005 && Math.abs(total) < 0.005) return;
     wsD.getRow(rrD).values = [d+' mm', round2(len), round2(pipeCost), round2(e90), round2(e45), round2(tee), round2(weld), round2(solv), round2(other), round2(total)];
     setMoney(rrD, [2,3,4,5,6,7,8,9,10]);
-    styleDataRow(wsD, rrD, 10, bRow);
+    styleDataRow(wsD, rrD, 10, bRow, 1);
     bRow = !bRow; subPipeB += pipeCost; grandE90 += e90; grandE45 += e45; grandTee += tee; grandWeld += weld; grandSolv += solv; grandOther += other; subTotalB += total; rrD++;
   });
   wsD.getCell(rrD,1).value = 'SUBTOTAL';
@@ -1818,11 +1834,21 @@ async function exportExcel(){
   rrD += 2;
 
   wsD.getCell(rrD,1).value = 'GRAND TOTAL — ALL DIAMETERS COMBINED';
-  wsD.getCell(rrD,1).font = {bold:true, size:12};
   wsD.getCell(rrD,6).value = round2(subTotalA + subTotalB);
   wsD.getCell(rrD,6).numFmt = '#,##0.00';
-  wsD.getCell(rrD,6).font = {bold:true, size:12};
+  styleGrandRow(wsD, rrD, 6);
+  wsD.mergeCells(rrD,1,rrD,5);
   wsD.views = [{state:'frozen', ySplit:0}];
+
+  wb.eachSheet(ws=>{
+    ws.views = (ws.views && ws.views.length ? ws.views : [{}]).map(v=>Object.assign({}, v, {showGridLines:false}));
+    ws.pageSetup = {
+      paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0,
+      horizontalCentered:true, printTitlesRow:'1:2',
+      margins:{left:0.4, right:0.4, top:0.6, bottom:0.7, header:0.3, footer:0.3}
+    };
+    ws.headerFooter = {oddFooter:'&L&9Eng. Hesham Mohamed — CES&C&9&A&R&9Page &P of &N'};
+  });
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], {type:'application/octet-stream'});
