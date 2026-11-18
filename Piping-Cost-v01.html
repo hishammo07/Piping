@@ -972,6 +972,9 @@ function toolbar(text){
 }
 
 const CAT_HEAD = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
+/* Bolts are already loaded on the valves themselves, so Socket and Flanges carry NO bolts fee */
+const NO_BOLTS_CATS = ['Socket','Flanges'];
+const CAT_HEAD_VALVE_NOBOLTS = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Total Price'];
 const CAT_HEAD_VALVE = ['Item','Size','Unit','Qty','Dry Cost','Vat','Install &amp; Transport','Concept Cost','Profit','Unit Rate','Bolts (75mm+)','Total Price'];
 
 function buildCatTable(cat){
@@ -980,7 +983,7 @@ function buildCatTable(cat){
   const table = el('table',{id:'tbl_'+cat, class:'cat-table'});
   const thead = el('thead');
   const trh = el('tr');
-  (isValve ? CAT_HEAD_VALVE : CAT_HEAD).forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
+  (isValve && !NO_BOLTS_CATS.includes(cat) ? CAT_HEAD_VALVE : CAT_HEAD).forEach((h,i)=> trh.appendChild(el('th',{class:i<3?'left':''}, h)));
   thead.appendChild(trh);
   table.appendChild(thead);
   const tbody = el('tbody');
@@ -1017,7 +1020,7 @@ function buildCatTable(cat){
     }
     qtyTd.appendChild(qtyInput);
     tr.appendChild(qtyTd);
-    (isValve ? ['dry','vat','inst','concept','prof','rate','bolts','total'] : ['dry','vat','inst','concept','prof','rate','total']).forEach(f=>{
+    (isValve && !NO_BOLTS_CATS.includes(cat) ? ['dry','vat','inst','concept','prof','rate','bolts','total'] : ['dry','vat','inst','concept','prof','rate','total']).forEach(f=>{
       tr.appendChild(el('td',{}, el('span',{class:'computed'+(f==='total'?' strong':''), id:'c_'+f+'_'+cat+'_'+r.orig_row}, '0.00').outerHTML));
     });
     tbody.appendChild(tr);
@@ -1025,7 +1028,7 @@ function buildCatTable(cat){
   table.appendChild(tbody);
   const tfoot = el('tfoot');
   const trf = el('tr');
-  trf.appendChild(el('td',{class:'left',colspan:isValve?'11':'10'}, 'TOTAL'));
+  trf.appendChild(el('td',{class:'left',colspan:(isValve && !NO_BOLTS_CATS.includes(cat))?'11':'10'}, 'TOTAL'));
   trf.appendChild(el('td',{}, el('span',{id:'tot_'+cat}, '0.00').outerHTML));
   tfoot.appendChild(trf);
   table.appendChild(tfoot);
@@ -1578,7 +1581,7 @@ function recalcGroup(cfg, totals){
       const dry = Number(r.dry)||0;
       const qty = Number(r.qty)||0;
       const p = pricing(dry, qty);
-      if(cfg.solventFlatFee){
+      if(cfg.solventFlatFee && !NO_BOLTS_CATS.includes(cat)){
         let boltsFee = 0;
         const sizeNum = parseFloat(normSize(r.size));
         if(!isNaN(sizeNum) && sizeNum>=cfg.solventFlatMinSize){
@@ -1947,7 +1950,7 @@ function computeGroupTotals(cfg){
     cfg.data.cats[cat].forEach(row=>{
       const p = pricing(Number(row.dry)||0, Number(row.qty)||0);
       let total = p.total;
-      if(cfg.solventFlatFee){
+      if(cfg.solventFlatFee && !NO_BOLTS_CATS.includes(cat)){
         const sizeNum = parseFloat(normSize(row.size));
         if(!isNaN(sizeNum) && sizeNum>=cfg.solventFlatMinSize){
           total += cfg.solventFlatFee*(Number(row.qty)||0);
@@ -1999,7 +2002,7 @@ async function exportExcel(){
     ['VAT %', assump.vat, 'Applied to Dry cost'],
     ['Installation & Transport %', assump.inst, 'Applied to Dry cost'],
     ['Profit %', assump.prof, 'Applied to Concept cost'],
-    ['Bolts Flat Fee (EGP)', GROUP_CFG.Valve.solventFlatFee, 'Added per unit for valves at/above the min size below'],
+    ['Bolts Flat Fee (EGP)', GROUP_CFG.Valve.solventFlatFee, 'Added per unit for valves at/above the min size below (not applied to Socket and Flanges)'],
     ['Bolts Min Size (mm)', GROUP_CFG.Valve.solventFlatMinSize, 'Threshold that triggers the bolts fee'],
   ];
   assumpRows.forEach((rowVals, i)=>{
@@ -2053,7 +2056,7 @@ async function exportExcel(){
   const catHeadersBolts = ['Item','Size','Unit','Qty','Dry cost','Vat','Install & Transport','Concept cost','Profit','Unit rate','Bolts','Total price'];
   const catWidthsBolts = [16,12,8,9,12,10,16,13,10,12,12,14];
   function buildCatSheet(cat, cfg){
-    const hasBolts = !!cfg.solventFlatFee;
+    const hasBolts = !!cfg.solventFlatFee && !NO_BOLTS_CATS.includes(cat);
     const headers = hasBolts ? catHeadersBolts : catHeaders;
     const widths = hasBolts ? catWidthsBolts : catWidths;
     const lastCol = headers.length;
@@ -2357,7 +2360,7 @@ async function exportExcel(){
         if(q===0 && Math.abs(cost)<0.005) return;
         const wp = loadsX.weldPer[id]||0, sp = loadsX.solvPer[id]||0;
         let rv = pricing(Number(row.dry)||0, 1).unitRate;
-        if(GROUP_CFG.Valve.solventFlatFee){
+        if(GROUP_CFG.Valve.solventFlatFee && !NO_BOLTS_CATS.includes(key)){
           const sn = parseFloat(normSize(row.size));
           if(!isNaN(sn) && sn>=GROUP_CFG.Valve.solventFlatMinSize) rv += GROUP_CFG.Valve.solventFlatFee;
         }
